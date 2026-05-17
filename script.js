@@ -115,15 +115,78 @@ function getViewRows() {
   return rows;
 }
 
+function attachAutocomplete(input, suggestions) {
+  let dropdown = null;
+
+  function showDropdown(items) {
+    removeDropdown();
+    if (!items.length) return;
+    dropdown = document.createElement("ul");
+    dropdown.className = "ac-dropdown";
+    items.slice(0, 25).forEach(item => {
+      const li = document.createElement("li");
+      li.className = "ac-option";
+      li.textContent = item;
+      li.addEventListener("mousedown", e => {
+        e.preventDefault();
+        input.value = item;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        removeDropdown();
+      });
+      dropdown.appendChild(li);
+    });
+    const wrap = input.closest("th") || input.parentNode;
+    wrap.style.position = "relative";
+    wrap.appendChild(dropdown);
+  }
+
+  function removeDropdown() {
+    if (dropdown) { dropdown.remove(); dropdown = null; }
+  }
+
+  input.addEventListener("focus", () => {
+    const val = input.value.toLowerCase();
+    const matches = val ? suggestions.filter(s => s.toLowerCase().includes(val)) : suggestions.slice(0, 25);
+    showDropdown(matches);
+  });
+
+  input.addEventListener("input", () => {
+    const val = input.value.toLowerCase();
+    const matches = val ? suggestions.filter(s => s.toLowerCase().includes(val)) : suggestions.slice(0, 25);
+    showDropdown(matches);
+  });
+
+  input.addEventListener("blur", () => setTimeout(removeDropdown, 150));
+
+  input.addEventListener("keydown", e => {
+    if (!dropdown) return;
+    const items = [...dropdown.querySelectorAll(".ac-option")];
+    const active = dropdown.querySelector(".ac-option.ac-active");
+    let idx = items.indexOf(active);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (active) active.classList.remove("ac-active");
+      items[(idx + 1) % items.length].classList.add("ac-active");
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (active) active.classList.remove("ac-active");
+      items[(idx - 1 + items.length) % items.length].classList.add("ac-active");
+    } else if (e.key === "Enter" && active) {
+      e.preventDefault();
+      input.value = active.textContent;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      removeDropdown();
+    } else if (e.key === "Escape") {
+      removeDropdown();
+    }
+  });
+}
+
 function buildStayDataLists(rows) {
   Object.keys(filterState).forEach(field => {
-    const listId = `dl-stay-${field}`;
-    let dl = document.getElementById(listId);
-    if (!dl) { dl = document.createElement("datalist"); dl.id = listId; document.body.appendChild(dl); }
     const unique = [...new Set(rows.map(r => String(r[field] ?? "")).filter(Boolean))].sort();
-    dl.innerHTML = unique.map(v => `<option value="${escapeHtml(v)}"></option>`).join("");
     const input = document.querySelector(`.filter-row [data-filter="${field}"]`);
-    if (input) input.setAttribute("list", listId);
+    if (input) attachAutocomplete(input, unique);
   });
 }
 
@@ -697,13 +760,9 @@ function getPlanViewRows() {
 
 function buildPlanDataLists(rows) {
   Object.keys(planFilterState).forEach(field => {
-    const listId = `dl-plan-${field}`;
-    let dl = document.getElementById(listId);
-    if (!dl) { dl = document.createElement("datalist"); dl.id = listId; document.body.appendChild(dl); }
     const unique = [...new Set(rows.map(r => String(r[field] ?? "")).filter(Boolean))].sort();
-    dl.innerHTML = unique.map(v => `<option value="${escapeHtml(v)}"></option>`).join("");
     const input = document.querySelector(`#planPanel .filter-row [data-pfilter="${field}"]`);
-    if (input) input.setAttribute("list", listId);
+    if (input) attachAutocomplete(input, unique);
   });
 }
 
@@ -1120,7 +1179,7 @@ loadPlaneamentoTable();
 // ── NAVBAR ALERT BADGE ────────────────────────────────────────────────────────
 
 function setNavAlertBadge(red, orange) {
-  const link = document.querySelector('.navbar-links a[href="/alertas"]');
+  const link = document.querySelector('.navbar-links a[href*="alertas"]');
   if (!link) return;
   const existing = link.querySelector(".nav-alert-badge");
   if (existing) existing.remove();

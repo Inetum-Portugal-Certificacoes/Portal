@@ -486,6 +486,29 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .footer-logo { height: 22px; }
 .footer-copy { font-size: .76rem; color: var(--text-muted); }
 
+/* ── AUTOCOMPLETE DROPDOWN ───────────────────────────── */
+.ac-dropdown {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 999;
+  list-style: none; margin: 2px 0 0; padding: 4px 0;
+  background: var(--bg-card, #0f1923);
+  border: 1px solid var(--glass-border, rgba(255,255,255,.1));
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  max-height: 220px; overflow-y: auto;
+}
+.ac-dropdown::-webkit-scrollbar { width: 4px; }
+.ac-dropdown::-webkit-scrollbar-track { background: transparent; }
+.ac-dropdown::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 4px; }
+.ac-option {
+  padding: 7px 12px; font-size: .8rem; color: var(--text-muted);
+  cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: background .12s, color .12s;
+}
+.ac-option:hover, .ac-option.ac-active {
+  background: rgba(233,30,140,.12); color: #fff;
+}
+
 /* ── OVERVIEW CARDS (KPI style) ──────────────────────── */
 .overview-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
