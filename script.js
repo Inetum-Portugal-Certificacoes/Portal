@@ -864,7 +864,6 @@ function setupUpdateIndicadoresBtn() {
   });
 })();
 
-setupUpdateIndicadoresBtn();
 loadStayCertifiedTable();
 
 // ── PLANEAMENTO ──────────────────────────────────────────────────────────────
@@ -904,6 +903,8 @@ function applyPlanFilters(rows) {
 
 const MES_ORDER = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
   "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+setupUpdateIndicadoresBtn();
 
 function getPlanViewRows() {
   const rows = applyPlanFilters([...planRows]);
