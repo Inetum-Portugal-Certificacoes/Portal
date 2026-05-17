@@ -468,12 +468,39 @@ function updateStaySaveAllBtnState(saveAllBtn) {
   saveAllBtn.classList.toggle("has-changes", hasPending);
 }
 
+function exportToCSV(rows, columns, labels, filename) {
+  const BOM = "﻿";
+  const header = labels.join(";");
+  const body = rows.map(r =>
+    columns.map(c => {
+      const val = String(r[c] ?? "").replace(/"/g, '""');
+      return val.includes(";") || val.includes('"') || val.includes("\n") ? `"${val}"` : val;
+    }).join(";")
+  ).join("\r\n");
+  const blob = new Blob([BOM + header + "\r\n" + body], { type: "text/csv;charset=utf-8;" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function setupStayCertifiedEdition() {
   const toggleBtn = document.getElementById("toggleEditBtn");
   const addRowBtn = document.getElementById("addRowBtn");
   const saveAllBtn = document.getElementById("saveAllBtn");
+  const exportBtn  = document.getElementById("exportBtn");
   const tbody = document.getElementById("stayTableBody");
   if (!toggleBtn || !addRowBtn || !tbody) return;
+
+  if (exportBtn) {
+    exportBtn.addEventListener("click", () => {
+      const exportCols   = COLUMN_KEYS.filter(k => k !== "acoes");
+      const exportLabels = exportCols.map(k => COLUMN_LABELS[k]);
+      const today = new Date().toISOString().slice(0, 10);
+      exportToCSV(displayedRows, exportCols, exportLabels, `certificacoes_${today}.csv`);
+    });
+  }
 
   const exitEditMode = async (reload) => {
     editMode = false;
@@ -482,6 +509,7 @@ function setupStayCertifiedEdition() {
     toggleBtn.classList.remove("active");
     addRowBtn.classList.add("hidden");
     if (saveAllBtn) { saveAllBtn.classList.add("hidden"); saveAllBtn.classList.remove("has-changes"); }
+    if (exportBtn)  exportBtn.classList.remove("hidden");
     visibleColumns.acoes = false;
     applyColumnVisibility();
     if (reload) await loadStayCertifiedTable();
@@ -494,6 +522,7 @@ function setupStayCertifiedEdition() {
       toggleBtn.classList.add("active");
       addRowBtn.classList.remove("hidden");
       if (saveAllBtn) saveAllBtn.classList.remove("hidden");
+      if (exportBtn)  exportBtn.classList.add("hidden");
       visibleColumns.acoes = true;
       applyColumnVisibility();
       renderStayTable();
@@ -1027,9 +1056,19 @@ function updateSaveAllBtnState(saveAllBtn) {
 function setupPlaneamentoEdition() {
   const toggleBtn  = document.getElementById("planToggleEditBtn");
   const addRowBtn  = document.getElementById("planAddRowBtn");
-  const saveAllBtn = document.getElementById("planSaveAllBtn");
-  const tbody      = document.getElementById("planTableBody");
+  const saveAllBtn  = document.getElementById("planSaveAllBtn");
+  const exportBtn   = document.getElementById("planExportBtn");
+  const tbody       = document.getElementById("planTableBody");
   if (!toggleBtn || !addRowBtn || !tbody) return;
+
+  if (exportBtn) {
+    exportBtn.addEventListener("click", () => {
+      const exportCols   = PLAN_COLUMN_KEYS.filter(k => k !== "acoes");
+      const exportLabels = exportCols.map(k => PLAN_COLUMN_LABELS[k]);
+      const today = new Date().toISOString().slice(0, 10);
+      exportToCSV(planDisplayedRows, exportCols, exportLabels, `planeamento_${today}.csv`);
+    });
+  }
 
   const exitEditMode = async (reload) => {
     planEditMode = false;
@@ -1038,6 +1077,7 @@ function setupPlaneamentoEdition() {
     toggleBtn.classList.remove("active");
     addRowBtn.classList.add("hidden");
     if (saveAllBtn) { saveAllBtn.classList.add("hidden"); saveAllBtn.classList.remove("has-changes"); }
+    if (exportBtn)  exportBtn.classList.remove("hidden");
     planVisibleColumns.acoes = false;
     applyPlanColumnVisibility();
     if (reload) await loadPlaneamentoTable();
@@ -1050,6 +1090,7 @@ function setupPlaneamentoEdition() {
       toggleBtn.classList.add("active");
       addRowBtn.classList.remove("hidden");
       if (saveAllBtn) saveAllBtn.classList.remove("hidden");
+      if (exportBtn)  exportBtn.classList.add("hidden");
       planVisibleColumns.acoes = true;
       applyPlanColumnVisibility();
       renderPlanTable();
