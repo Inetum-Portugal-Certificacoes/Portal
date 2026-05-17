@@ -1485,6 +1485,7 @@ loadPlaneamentoTable();
 // ── INDICADORES ──────────────────────────────────────────────────────────────
 
 let indTeamFilter = "";
+let _indEvolutionChart = null;
 
 async function loadIndOverview(teamFilter = "") {
   const elCerts    = document.getElementById("indTotalCerts");
@@ -1553,14 +1554,115 @@ async function loadIndTeams() {
       indTeamFilter = indTeamFilter === team ? "" : team;
       render();
       loadIndOverview(indTeamFilter);
+      loadIndChart(indTeamFilter);
     });
   } catch (err) {
     console.error("Erro ao carregar equipas de indicadores:", err);
   }
 }
 
+async function loadIndChart(teamFilter = "") {
+  const canvas = document.getElementById("indEvolutionChart");
+  if (!canvas) return;
+
+  const prevYear = new Date().getFullYear() - 1;
+  const team = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
+
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/indicadores?select=ano,mes,certificacoes,consultores${team}&ano=gte.${prevYear}&order=ano.asc,mes.asc&limit=500`,
+      { headers: supabaseHeaders() }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
+
+    // Aggregate by ano+mes (sum if multiple teams)
+    const buckets = {};
+    rows.forEach(r => {
+      const key = `${r.ano}-${r.mes}`;
+      if (!buckets[key]) buckets[key] = { ano: r.ano, mes: r.mes, certs: 0, consult: 0 };
+      buckets[key].certs   += r.certificacoes || 0;
+      buckets[key].consult += r.consultores   || 0;
+    });
+
+    const sorted = Object.values(buckets).sort((a, b) => {
+      if (a.ano !== b.ano) return a.ano - b.ano;
+      return MES_ORDER.indexOf(a.mes) - MES_ORDER.indexOf(b.mes);
+    });
+
+    const labels  = sorted.map(r => `${r.mes.slice(0, 3)} ${r.ano}`);
+    const certs   = sorted.map(r => r.certs);
+    const consult = sorted.map(r => r.consult);
+
+    if (_indEvolutionChart) { _indEvolutionChart.destroy(); _indEvolutionChart = null; }
+
+    _indEvolutionChart = new Chart(canvas, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Certificações",
+            data: certs,
+            borderColor: "#E91E8C",
+            backgroundColor: "rgba(233,30,140,.12)",
+            pointBackgroundColor: "#E91E8C",
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            tension: 0.35,
+            fill: true
+          },
+          {
+            label: "Consultores",
+            data: consult,
+            borderColor: "#00d4ff",
+            backgroundColor: "rgba(0,212,255,.08)",
+            pointBackgroundColor: "#00d4ff",
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            tension: 0.35,
+            fill: true
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: {
+            labels: { color: "#c8d8e8", font: { family: "Inter", size: 12 }, boxWidth: 16, padding: 20 }
+          },
+          tooltip: {
+            backgroundColor: "#0d1e2e",
+            borderColor: "rgba(255,255,255,.12)",
+            borderWidth: 1,
+            titleColor: "#e0eaf4",
+            bodyColor: "#8899aa",
+            padding: 12
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: "rgba(255,255,255,.05)" },
+            ticks: { color: "#8899aa", font: { family: "Inter", size: 11 }, maxRotation: 45 }
+          },
+          y: {
+            grid: { color: "rgba(255,255,255,.06)" },
+            ticks: { color: "#8899aa", font: { family: "Inter", size: 11 } },
+            beginAtZero: false
+          }
+        }
+      }
+    });
+  } catch (err) {
+    console.error("Erro ao carregar gráfico de indicadores:", err);
+  }
+}
+
 loadIndTeams();
 loadIndOverview();
+loadIndChart();
 
 // ── NAVBAR ALERT BADGE ────────────────────────────────────────────────────────
 

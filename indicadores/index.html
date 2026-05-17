@@ -55,18 +55,30 @@
             <p>Indicadores de desempenho e métricas de certificação</p>
           </div>
           <div class="kpi-grid kpi-grid-3">
-            <article class="kpi">
+            <article class="kpi kpi-sm">
               <p>Certificações Válidas</p>
               <strong id="indTotalCerts">—</strong>
             </article>
-            <article class="kpi">
+            <article class="kpi kpi-sm">
               <p>Consultores Certificados</p>
               <strong id="indTotalConsultores">—</strong>
             </article>
-            <article class="kpi">
+            <article class="kpi kpi-sm">
               <p>Consultores Externos</p>
               <strong id="indTotalExternos">—</strong>
             </article>
+          </div>
+        </section>
+
+        <section class="content-section reveal">
+          <div class="section-title">
+            <h2>Evolução Temporal</h2>
+            <p>Certificações e consultores ao longo do tempo</p>
+          </div>
+          <div class="glass-panel">
+            <div class="chart-wrap" style="position:relative; min-height:320px;">
+              <canvas id="indEvolutionChart"></canvas>
+            </div>
           </div>
         </section>
 
@@ -82,6 +94,7 @@
       </div>
     </footer>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     <script src="script.js"></script>
   </body>
 </html>
