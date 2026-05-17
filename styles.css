@@ -439,10 +439,13 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .drill-section-header td { background: rgba(255,255,255,.04); color: var(--text-muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; padding: 6px 12px !important; }
 
 /* ── PROJECTION TILES ────────────────────────────────────── */
-.proj-grid { grid-template-columns: repeat(3, 1fr); }
+.proj-title-bar { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.proj-toggles-bar { display: flex; gap: 20px; align-items: center; padding-bottom: 2px; }
+.proj-toggle-item { display: flex; align-items: center; gap: 8px; }
+.proj-toggle-label { font-size: .78rem; font-weight: 700; letter-spacing: .02em; }
+
+.proj-grid { grid-template-columns: repeat(4, 1fr); }
 .proj-tile { display: flex; flex-direction: column; gap: 10px; }
-.proj-tile-head { display: flex; align-items: center; justify-content: space-between; }
-.proj-tile-head p { margin: 0; }
 .proj-input-wrap { display: flex; align-items: center; gap: 6px; }
 .proj-input {
   width: 100%; background: rgba(255,255,255,.06); border: 1px solid var(--glass-border);
@@ -453,8 +456,16 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .proj-input::-webkit-outer-spin-button,
 .proj-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .proj-input:focus { border-color: var(--accent); }
-.proj-input:disabled { opacity: .35; cursor: not-allowed; }
+.proj-input-pct { font-size: 1.2rem; }
 .proj-unit { color: var(--text-muted); font-size: 1rem; font-weight: 600; white-space: nowrap; }
+
+/* split tile layout (left % | divider | right calc) */
+.proj-split { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.proj-split-left { flex: 1; min-width: 0; }
+.proj-split-divider { width: 1px; height: 38px; background: var(--glass-border); flex-shrink: 0; }
+.proj-split-right { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
+.proj-split-right strong { font-size: 1.4rem; font-weight: 700; color: var(--text-primary); line-height: 1; }
+.proj-calc-label { font-size: .65rem; color: var(--text-muted); margin-top: 2px; white-space: nowrap; }
 
 /* toggle switch */
 .proj-toggle { position: relative; display: inline-flex; cursor: pointer; }
@@ -464,23 +475,21 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
   transition: background .25s; display: flex; align-items: center; padding: 3px;
 }
 .proj-toggle-thumb {
-  width: 14px; height: 14px; background: rgba(255,255,255,.5); border-radius: 50%;
+  width: 14px; height: 14px; background: rgba(255,255,255,.4); border-radius: 50%;
   transition: transform .25s, background .25s; box-shadow: 0 1px 3px rgba(0,0,0,.4);
 }
-.proj-toggle input:checked ~ .proj-toggle-track .proj-toggle-thumb {
-  transform: translateX(16px); background: #fff;
-}
+.proj-toggle input:checked ~ .proj-toggle-track .proj-toggle-thumb { transform: translateX(16px); background: #fff; }
 
-/* per-tile toggle colours matching chart lines */
-#projObjInetumTile .proj-toggle input:checked ~ .proj-toggle-track { background: #ff9800; }
-#projObjEquipaTile .proj-toggle input:checked ~ .proj-toggle-track { background: #00e676; }
+/* section-level toggle colours matching chart lines */
+.proj-toggle-item:has(#projObjInetumActive) .proj-toggle input:checked ~ .proj-toggle-track { background: #ff9800; }
+.proj-toggle-item:has(#projObjEquipaActive)  .proj-toggle input:checked ~ .proj-toggle-track { background: #00e676; }
 
 /* accent border glow when active */
 #projObjInetumTile:not(.proj-inactive) { border-color: rgba(255,152,0,.35); }
 #projObjEquipaTile:not(.proj-inactive) { border-color: rgba(0,230,118,.35); }
 
 /* dimmed state when toggle is off */
-.proj-tile.proj-inactive .proj-input-wrap { opacity: .35; pointer-events: none; }
+.proj-tile.proj-inactive .proj-split { opacity: .35; pointer-events: none; }
 .proj-tile.proj-inactive { border-color: var(--glass-border) !important; }
 
 .chart-placeholder {

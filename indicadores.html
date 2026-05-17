@@ -75,9 +75,27 @@
         </section>
 
         <section class="content-section reveal" id="projeccaoSection" style="display:none;">
-          <div class="section-title">
-            <h2>Projeção de Planeamento</h2>
-            <p id="projeccaoSubtitle">Configuração de objetivos e planeamento da equipa</p>
+          <div class="section-title proj-title-bar">
+            <div>
+              <h2>Projeção de Planeamento</h2>
+              <p id="projeccaoSubtitle">Configuração de objetivos e planeamento da equipa</p>
+            </div>
+            <div class="proj-toggles-bar">
+              <div class="proj-toggle-item">
+                <span class="proj-toggle-label" style="color:#ff9800">Obj. Inetum</span>
+                <label class="proj-toggle">
+                  <input type="checkbox" id="projObjInetumActive" />
+                  <span class="proj-toggle-track"><span class="proj-toggle-thumb"></span></span>
+                </label>
+              </div>
+              <div class="proj-toggle-item">
+                <span class="proj-toggle-label" style="color:#00e676">Obj. Equipa</span>
+                <label class="proj-toggle">
+                  <input type="checkbox" id="projObjEquipaActive" />
+                  <span class="proj-toggle-track"><span class="proj-toggle-thumb"></span></span>
+                </label>
+              </div>
+            </div>
           </div>
           <div class="kpi-grid proj-grid">
 
@@ -89,31 +107,43 @@
             </article>
 
             <article class="kpi kpi-sm proj-tile" id="projObjInetumTile">
-              <div class="proj-tile-head">
-                <p>Objetivo Inetum</p>
-                <label class="proj-toggle" title="Ativar/desativar">
-                  <input type="checkbox" id="projObjInetumActive" />
-                  <span class="proj-toggle-track"><span class="proj-toggle-thumb"></span></span>
-                </label>
-              </div>
-              <div class="proj-input-wrap">
-                <input id="projObjInetum" type="number" min="0" max="100" step="0.1" class="proj-input" placeholder="—" />
-                <span class="proj-unit">%</span>
+              <p>Objetivo Inetum</p>
+              <div class="proj-split">
+                <div class="proj-split-left">
+                  <div class="proj-input-wrap">
+                    <input id="projObjInetum" type="number" min="0" max="100" step="0.1" class="proj-input proj-input-pct" placeholder="—" />
+                    <span class="proj-unit">%</span>
+                  </div>
+                </div>
+                <div class="proj-split-divider"></div>
+                <div class="proj-split-right">
+                  <strong id="projObjInetumCalc">—</strong>
+                  <span class="proj-calc-label">consultores</span>
+                </div>
               </div>
             </article>
 
             <article class="kpi kpi-sm proj-tile" id="projObjEquipaTile">
-              <div class="proj-tile-head">
-                <p>Objetivo de Equipa</p>
-                <label class="proj-toggle" title="Ativar/desativar">
-                  <input type="checkbox" id="projObjEquipaActive" />
-                  <span class="proj-toggle-track"><span class="proj-toggle-thumb"></span></span>
-                </label>
+              <p>Objetivo de Equipa</p>
+              <div class="proj-split">
+                <div class="proj-split-left">
+                  <div class="proj-input-wrap">
+                    <input id="projObjEquipa" type="number" min="0" max="100" step="0.1" class="proj-input proj-input-pct" placeholder="—" />
+                    <span class="proj-unit">%</span>
+                  </div>
+                </div>
+                <div class="proj-split-divider"></div>
+                <div class="proj-split-right">
+                  <strong id="projObjEquipaCalc">—</strong>
+                  <span class="proj-calc-label">consultores</span>
+                </div>
               </div>
-              <div class="proj-input-wrap">
-                <input id="projObjEquipa" type="number" min="0" max="100" step="0.1" class="proj-input" placeholder="—" />
-                <span class="proj-unit">%</span>
-              </div>
+            </article>
+
+            <article class="kpi kpi-sm proj-tile">
+              <p>Cobertura de Planeamento</p>
+              <strong id="projPlaneamentoTotal">—</strong>
+              <span id="projPlaneamentoDetail" class="proj-calc-label"></span>
             </article>
 
           </div>
