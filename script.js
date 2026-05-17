@@ -1173,6 +1173,11 @@ function renderPlanTeamTiles(rows) {
       <span class="team-tile-count">${counts[t]} cert.</span>
     </button>`
   ).join("");
+}
+
+function setupPlanTeamTilesListener() {
+  const container = document.getElementById("planTeamTiles");
+  if (!container) return;
   container.addEventListener("click", (e) => {
     const tile = e.target.closest("[data-plan-team]");
     if (!tile) return;
@@ -1186,7 +1191,7 @@ function renderPlanTeamTiles(rows) {
     if (!isActive) {
       document.getElementById("planPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }, { once: true });
+  });
 }
 
 function setupPlanColumnMenu() {
@@ -1540,6 +1545,7 @@ function setupPlaneamentoEdition() {
 
 setupPlanColumnMenu();
 applyPlanColumnVisibility();
+setupPlanTeamTilesListener();
 setupPlaneamentoEdition();
 
 // Apply drilldown filters from URL query params (e.g. ?filter_email=x&filter_mes_certificacao=y)
