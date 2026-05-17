@@ -1675,45 +1675,9 @@ async function loadIndChart(teamFilter = "") {
 
     if (_indEvolutionChart) { _indEvolutionChart.destroy(); _indEvolutionChart = null; }
 
-    // Projection target lines (flat dashed)
-    const proj    = teamFilter ? projLoad(teamFilter) : {};
-    const nPoints = labels.length;
-    const extraDatasets = [];
-
-    if (teamFilter && proj.consultores && proj.obj_active !== false) {
-      if (proj.obj_inetum != null) {
-        const target = Math.round((proj.obj_inetum / 100) * proj.consultores);
-        extraDatasets.push({
-          label: `Obj. Inetum (${proj.obj_inetum}%)`,
-          data: Array(nPoints).fill(target),
-          borderColor: "rgba(255,152,0,.45)",
-          backgroundColor: "transparent",
-          borderWidth: 1.5,
-          borderDash: [10, 6],
-          pointRadius: 0,
-          pointHoverRadius: 0,
-          tension: 0,
-          fill: false,
-          spanGaps: true
-        });
-      }
-      if (proj.obj_equipa != null) {
-        const target = Math.round((proj.obj_equipa / 100) * proj.consultores);
-        extraDatasets.push({
-          label: `Obj. Equipa (${proj.obj_equipa}%)`,
-          data: Array(nPoints).fill(target),
-          borderColor: "rgba(0,230,118,.45)",
-          backgroundColor: "transparent",
-          borderWidth: 1.5,
-          borderDash: [10, 6],
-          pointRadius: 0,
-          pointHoverRadius: 0,
-          tension: 0,
-          fill: false,
-          spanGaps: true
-        });
-      }
-    }
+    // Projection target lines (flat dashed) — built via shared helper
+    const proj         = teamFilter ? projLoad(teamFilter) : {};
+    const extraDatasets = teamFilter ? _buildProjDatasets(proj, labels.length) : [];
 
     _indEvolutionChart = new Chart(canvas, {
       type: "line",
@@ -1983,6 +1947,34 @@ function showIndNewCertsDrill(ym, year, mIdx) {
 
 // ── INDICADORES — PROJEÇÃO DE PLANEAMENTO ────────────────────────────────────
 
+function _buildProjDatasets(proj, nPoints) {
+  const out = [];
+  if (!proj?.consultores || proj.obj_active === false) return out;
+  const mkLine = (label, color, target) => ({
+    label, data: Array(nPoints).fill(target),
+    borderColor: color, backgroundColor: "transparent",
+    borderWidth: 1.5, borderDash: [10, 6],
+    pointRadius: 0, pointHoverRadius: 0,
+    tension: 0, fill: false, spanGaps: true
+  });
+  if (proj.obj_inetum != null)
+    out.push(mkLine(`Obj. Inetum (${proj.obj_inetum}%)`, "rgba(255,152,0,.45)",
+      Math.round((proj.obj_inetum / 100) * proj.consultores)));
+  if (proj.obj_equipa != null)
+    out.push(mkLine(`Obj. Equipa (${proj.obj_equipa}%)`, "rgba(0,230,118,.45)",
+      Math.round((proj.obj_equipa / 100) * proj.consultores)));
+  return out;
+}
+
+function updateChartProjectionLines(team) {
+  if (!_indEvolutionChart) return;
+  const chart  = _indEvolutionChart;
+  const proj   = team ? projLoad(team) : {};
+  const n      = chart.data.labels.length;
+  chart.data.datasets = [...chart.data.datasets.slice(0, 2), ..._buildProjDatasets(proj, n)];
+  chart.update("none");
+}
+
 const PROJ_STORAGE_KEY = team => `ind_proj_${team}`;
 
 function projLoad(team) {
@@ -2078,7 +2070,7 @@ function loadIndProjection(team) {
       obj_active:  inp("projObjActive").checked,
     });
     updateProjCalcs();
-    loadIndChart(team);
+    updateChartProjectionLines(team);
   };
 
   inp("projConsultores").addEventListener("input",  updateProjCalcs);

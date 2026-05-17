@@ -135,12 +135,22 @@
 
             <article class="kpi kpi-sm proj-tile">
               <p>Com Planeamento</p>
-              <div class="proj-plan-row">
-                <span id="projPlanCert">—</span>
-                <span class="proj-plan-op">+</span>
-                <span id="projPlanPlan">—</span>
-                <span class="proj-plan-op">=</span>
-                <strong id="projPlaneamentoTotal">—</strong>
+              <div class="proj-split">
+                <div class="proj-plan-left">
+                  <div class="proj-plan-item">
+                    <span class="proj-calc-label">Certificados</span>
+                    <span id="projPlanCert" class="proj-plan-val">—</span>
+                  </div>
+                  <div class="proj-plan-item">
+                    <span class="proj-calc-label">Planeados</span>
+                    <span id="projPlanPlan" class="proj-plan-val">—</span>
+                  </div>
+                </div>
+                <div class="proj-split-divider"></div>
+                <div class="proj-split-right">
+                  <strong id="projPlaneamentoTotal">—</strong>
+                  <span class="proj-calc-label">total</span>
+                </div>
               </div>
             </article>
 
