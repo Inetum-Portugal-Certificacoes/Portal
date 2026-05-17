@@ -460,18 +460,28 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .proj-toggle { position: relative; display: inline-flex; cursor: pointer; }
 .proj-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
 .proj-toggle-track {
-  width: 34px; height: 18px; background: rgba(255,255,255,.12); border-radius: 9px;
-  transition: background .2s; display: flex; align-items: center; padding: 2px;
+  width: 36px; height: 20px; background: rgba(255,255,255,.12); border-radius: 10px;
+  transition: background .25s; display: flex; align-items: center; padding: 3px;
 }
-.proj-toggle input:checked ~ .proj-toggle-track { background: var(--accent); }
 .proj-toggle-thumb {
-  width: 14px; height: 14px; background: #fff; border-radius: 50%;
-  transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.4);
+  width: 14px; height: 14px; background: rgba(255,255,255,.5); border-radius: 50%;
+  transition: transform .25s, background .25s; box-shadow: 0 1px 3px rgba(0,0,0,.4);
 }
-.proj-toggle input:checked ~ .proj-toggle-track .proj-toggle-thumb { transform: translateX(16px); }
+.proj-toggle input:checked ~ .proj-toggle-track .proj-toggle-thumb {
+  transform: translateX(16px); background: #fff;
+}
+
+/* per-tile toggle colours matching chart lines */
+#projObjInetumTile .proj-toggle input:checked ~ .proj-toggle-track { background: #ff9800; }
+#projObjEquipaTile .proj-toggle input:checked ~ .proj-toggle-track { background: #00e676; }
+
+/* accent border glow when active */
+#projObjInetumTile:not(.proj-inactive) { border-color: rgba(255,152,0,.35); }
+#projObjEquipaTile:not(.proj-inactive) { border-color: rgba(0,230,118,.35); }
 
 /* dimmed state when toggle is off */
 .proj-tile.proj-inactive .proj-input-wrap { opacity: .35; pointer-events: none; }
+.proj-tile.proj-inactive { border-color: var(--glass-border) !important; }
 
 .chart-placeholder {
   margin-top: 14px; min-height: 200px;

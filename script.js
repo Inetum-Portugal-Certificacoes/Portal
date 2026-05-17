@@ -1675,6 +1675,46 @@ async function loadIndChart(teamFilter = "") {
 
     if (_indEvolutionChart) { _indEvolutionChart.destroy(); _indEvolutionChart = null; }
 
+    // Projection target lines (flat dashed)
+    const proj    = teamFilter ? projLoad(teamFilter) : {};
+    const nPoints = labels.length;
+    const extraDatasets = [];
+
+    if (teamFilter && proj.consultores) {
+      if (proj.obj_inetum_active !== false && proj.obj_inetum != null) {
+        const target = Math.round((proj.obj_inetum / 100) * proj.consultores);
+        extraDatasets.push({
+          label: `Obj. Inetum (${proj.obj_inetum}%)`,
+          data: Array(nPoints).fill(target),
+          borderColor: "#ff9800",
+          backgroundColor: "transparent",
+          borderWidth: 2,
+          borderDash: [8, 5],
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          tension: 0,
+          fill: false,
+          spanGaps: true
+        });
+      }
+      if (proj.obj_equipa_active !== false && proj.obj_equipa != null) {
+        const target = Math.round((proj.obj_equipa / 100) * proj.consultores);
+        extraDatasets.push({
+          label: `Obj. Equipa (${proj.obj_equipa}%)`,
+          data: Array(nPoints).fill(target),
+          borderColor: "#00e676",
+          backgroundColor: "transparent",
+          borderWidth: 2,
+          borderDash: [8, 5],
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          tension: 0,
+          fill: false,
+          spanGaps: true
+        });
+      }
+    }
+
     _indEvolutionChart = new Chart(canvas, {
       type: "line",
       data: {
@@ -1703,7 +1743,8 @@ async function loadIndChart(teamFilter = "") {
             tension: 0.35,
             fill: true,
             spanGaps: false
-          }
+          },
+          ...extraDatasets
         ]
       },
       options: {
@@ -2014,6 +2055,7 @@ function loadIndProjection(team) {
       obj_equipa:         inpObjEquipa.value   !== "" ? Number(inpObjEquipa.value)   : null,
       obj_equipa_active:  togObjEquipa.checked,
     });
+    loadIndChart(team);
   };
 
   inpConsultores.addEventListener("change", persist);
