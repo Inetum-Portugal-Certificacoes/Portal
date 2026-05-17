@@ -7,7 +7,7 @@ const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRrZ3Vsamx0c3V4d2Z0bW5iYXZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4NDQzMTgsImV4cCI6MjA5NDQyMDMxOH0.RxemxZ9TN39hmxSqwWNEl8oVf4tZSuKZvqctHW6PwWA";
 
 const SITE_OPTIONS = ["Lisboa", "Porto", "Braganca", "Covilha", "Brasil"];
-const COLUMN_KEYS = ["equipa", "email", "codigo_certificacao", "nome_certificacao", "site", "data_certificacao", "data_expiracao", "externo", "status_cert", "saiu", "acoes"];
+const COLUMN_KEYS = ["equipa", "email", "codigo_certificacao", "nome_certificacao", "site", "data_certificacao", "data_expiracao", "externo", "status_cert", "saiu", "notas", "acoes"];
 const COLUMN_LABELS = {
   equipa: "Equipa",
   email: "Email",
@@ -19,17 +19,19 @@ const COLUMN_LABELS = {
   externo: "Externo",
   status_cert: "Status",
   saiu: "Saiu",
+  notas: "Notas",
   acoes: "Acoes"
 };
 
 let stayRows = [];
+let stayNotes = [];
 let displayedRows = [];
 let editMode = false;
 let newRowDraft = null;
 let stayDirtySet = new Set(); // "equipa::email::codigo_certificacao" keys of rows with unsaved edits
 let _savedVisibleColumns = null;
 let sortState = { key: "email", direction: "asc" };
-const HIDDEN_BY_DEFAULT = new Set(["site", "data_certificacao", "externo", "saiu", "acoes"]);
+const HIDDEN_BY_DEFAULT = new Set(["site", "data_certificacao", "externo", "saiu", "notas", "acoes"]);
 let visibleColumns = Object.fromEntries(COLUMN_KEYS.map((k) => [k, !HIDDEN_BY_DEFAULT.has(k)]));
 let filterState = {
   equipa: "",
@@ -74,6 +76,8 @@ async function loadStayCertifiedTable() {
     const res = await fetch(url, { headers: supabaseHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     stayRows = await res.json();
+    const nr = await fetch(`${SUPABASE_URL}/rest/v1/stay_certified_notas?select=*&order=created_at.asc`, { headers: supabaseHeaders() });
+    stayNotes = nr.ok ? await nr.json() : [];
     buildStayDataLists(stayRows);
     renderTeamTiles(stayRows);
     renderStayTable();
@@ -219,6 +223,13 @@ function renderStayTable() {
     const statusBadge = (r.expirado === true || r.expirado === 'X')
       ? '<span class="badge danger">Expirado</span>'
       : '<span class="badge ok">Válido</span>';
+    const rowNotes = stayNotes.filter(n => n.equipa === r.equipa && n.email === r.email && n.codigo_certificacao === r.codigo_certificacao);
+    const notesBtnHtml = `<button class="notes-trigger${rowNotes.length > 0 ? ' has-notes' : ''}"
+      data-notes-equipa="${escapeHtml(r.equipa)}"
+      data-notes-email="${escapeHtml(r.email)}"
+      data-notes-codigo="${escapeHtml(r.codigo_certificacao)}"
+      data-notes-table="stay_certified_notas"
+      title="${rowNotes.length} nota(s)">${rowNotes.length > 0 ? `<span class="notes-badge">${rowNotes.length}</span>` : '+'}</button>`;
     if (!editMode) {
       return `<tr>
         <td class="col-equipa">${escapeHtml(r.equipa)}</td>
@@ -231,6 +242,7 @@ function renderStayTable() {
         <td class="col-externo">${r.externo ? '<span class="badge ok">Sim</span>' : ""}</td>
         <td class="col-status_cert">${statusBadge}</td>
         <td class="col-saiu">${r.saiu ? '<span class="badge danger">Sim</span>' : ""}</td>
+        <td class="col-notas">${notesBtnHtml}</td>
         <td class="col-acoes">-</td>
       </tr>`;
     }
@@ -247,6 +259,7 @@ function renderStayTable() {
       <td class="col-externo"><select data-field="externo" data-idx="${idx}"><option value="" ${!r.externo ? "selected" : ""}> </option><option value="Sim" ${r.externo ? "selected" : ""}>Sim</option></select></td>
       <td class="col-status_cert"><select data-field="expirado" data-idx="${idx}"><option value="false" ${!isExp ? "selected" : ""}>Válido</option><option value="true" ${isExp ? "selected" : ""}>Expirado</option></select></td>
       <td class="col-saiu"><select data-field="saiu" data-idx="${idx}"><option value="" ${!r.saiu ? "selected" : ""}> </option><option value="Sim" ${r.saiu ? "selected" : ""}>Sim</option></select></td>
+      <td class="col-notas">${notesBtnHtml}</td>
       <td class="col-acoes"><div class="row-actions"><button class="mini-btn cancel" data-action="delete-row" data-idx="${idx}" title="Eliminar registo">🗑</button></div></td>
     </tr>`;
   }).join("");
@@ -262,6 +275,7 @@ function renderStayTable() {
     <td class="col-externo"><select data-new="externo"><option value="" selected> </option><option value="Sim">Sim</option></select></td>
     <td class="col-status_cert"><select data-new="expirado"><option value="false" selected>Válido</option><option value="true">Expirado</option></select></td>
     <td class="col-saiu"><select data-new="saiu"><option value="" selected> </option><option value="Sim">Sim</option></select></td>
+    <td class="col-notas">—</td>
     <td class="col-acoes"><div class="row-actions"><button class="mini-btn cancel" id="cancelNewRowBtn" title="Cancelar">✕</button></div></td>
   </tr>` : "";
 
@@ -543,7 +557,7 @@ function setupStayCertifiedEdition() {
 
   if (exportBtn) {
     exportBtn.addEventListener("click", () => {
-      const exportCols   = COLUMN_KEYS.filter(k => k !== "acoes");
+      const exportCols   = COLUMN_KEYS.filter(k => k !== "acoes" && k !== "notas");
       const exportLabels = exportCols.map(k => COLUMN_LABELS[k]);
       const today = new Date().toISOString().slice(0, 10);
       const processedRows = displayedRows.map(r => ({
@@ -649,6 +663,12 @@ function setupStayCertifiedEdition() {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     try {
+      const notesBtn = target.closest(".notes-trigger");
+      if (notesBtn) {
+        if (_notesPopover && _notesAnchorBtn === notesBtn) { closeNotesPopover(); return; }
+        openNotesPopover(notesBtn.dataset.notesEquipa, notesBtn.dataset.notesEmail, notesBtn.dataset.notesCodigo, notesBtn, notesBtn.dataset.notesTable || "stay_certified_notas");
+        return;
+      }
       if (target.dataset.action === "delete-row") {
         await deleteExistingRow(Number(target.dataset.idx));
         stayDirtySet.clear();
@@ -1144,8 +1164,17 @@ function formatNoteDate(iso) {
   return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
 }
 
+function _notesGetArr(table) {
+  return table === "stay_certified_notas" ? stayNotes : planNotes;
+}
+function _notesSetArr(table, v) {
+  if (table === "stay_certified_notas") stayNotes = v;
+  else planNotes = v;
+}
+
 let _notesPopover = null;
 let _notesAnchorBtn = null;
+let _notesTable = null;
 
 function _notesOutsideClick(e) {
   if (_notesPopover && !_notesPopover.contains(e.target) &&
@@ -1157,13 +1186,15 @@ function _notesOutsideClick(e) {
 function closeNotesPopover() {
   if (_notesPopover) { _notesPopover.remove(); _notesPopover = null; }
   _notesAnchorBtn = null;
+  _notesTable = null;
   document.removeEventListener("click", _notesOutsideClick, true);
 }
 
-function openNotesPopover(equipa, email, codigo, anchorEl) {
+function openNotesPopover(equipa, email, codigo, anchorEl, table) {
   closeNotesPopover();
   _notesAnchorBtn = anchorEl;
-  const notes = planNotes.filter(n => n.equipa === equipa && n.email === email && n.codigo_certificacao === codigo);
+  _notesTable = table;
+  const notes = _notesGetArr(table).filter(n => n.equipa === equipa && n.email === email && n.codigo_certificacao === codigo);
 
   const pop = document.createElement("div");
   pop.className = "notes-popover";
@@ -1206,7 +1237,7 @@ function openNotesPopover(equipa, email, codigo, anchorEl) {
     if (!text) return;
     addBtn.disabled = true;
     try {
-      await addNote(equipa, email, codigo, text);
+      await addNote(equipa, email, codigo, text, table);
       textarea.value = "";
     } catch (err) { console.error(err); }
     finally { addBtn.disabled = false; }
@@ -1216,20 +1247,20 @@ function openNotesPopover(equipa, email, codigo, anchorEl) {
     const btn = e.target.closest(".note-delete");
     if (!btn) return;
     btn.disabled = true;
-    try { await deleteNote(btn.dataset.noteId, equipa, email, codigo); }
+    try { await deleteNote(btn.dataset.noteId, equipa, email, codigo, table); }
     catch (err) { console.error(err); btn.disabled = false; }
   });
 
   setTimeout(() => document.addEventListener("click", _notesOutsideClick, true), 0);
 }
 
-async function addNote(equipa, email, codigo, nota) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/planeamento_notas`,
+async function addNote(equipa, email, codigo, nota, table) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`,
     { method: "POST", headers: supabaseHeaders({ Prefer: "return=representation" }),
       body: JSON.stringify({ equipa, email, codigo_certificacao: codigo, nota }) });
   if (!res.ok) throw new Error(`POST note failed ${res.status}`);
   const [newNote] = await res.json();
-  planNotes.push(newNote);
+  _notesGetArr(table).push(newNote);
   if (_notesPopover) {
     const list = _notesPopover.querySelector(".notes-list");
     const empty = list.querySelector(".notes-empty");
@@ -1242,29 +1273,29 @@ async function addNote(equipa, email, codigo, nota) {
       <button class="note-delete" data-note-id="${escapeHtml(newNote.id_nota)}" title="Eliminar">🗑</button>`;
     list.appendChild(item);
   }
-  _updateNotesTrigger(equipa, email, codigo);
+  _updateNotesTrigger(equipa, email, codigo, table);
 }
 
-async function deleteNote(id_nota, equipa, email, codigo) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/planeamento_notas?id_nota=eq.${encodeURIComponent(id_nota)}`,
+async function deleteNote(id_nota, equipa, email, codigo, table) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id_nota=eq.${encodeURIComponent(id_nota)}`,
     { method: "DELETE", headers: supabaseHeaders() });
   if (!res.ok) throw new Error(`DELETE note failed ${res.status}`);
-  planNotes = planNotes.filter(n => n.id_nota !== id_nota);
+  _notesSetArr(table, _notesGetArr(table).filter(n => n.id_nota !== id_nota));
   if (_notesPopover) {
     _notesPopover.querySelector(`[data-note-id="${CSS.escape(id_nota)}"].note-item`)?.remove();
     const list = _notesPopover.querySelector(".notes-list");
     if (list && !list.querySelector(".note-item"))
       list.innerHTML = '<p class="notes-empty">Sem notas.</p>';
   }
-  _updateNotesTrigger(equipa, email, codigo);
+  _updateNotesTrigger(equipa, email, codigo, table);
 }
 
-function _updateNotesTrigger(equipa, email, codigo) {
+function _updateNotesTrigger(equipa, email, codigo, table) {
   const btn = document.querySelector(
     `.notes-trigger[data-notes-equipa="${CSS.escape(equipa)}"][data-notes-email="${CSS.escape(email)}"][data-notes-codigo="${CSS.escape(codigo)}"]`
   );
   if (!btn) return;
-  const count = planNotes.filter(n => n.equipa === equipa && n.email === email && n.codigo_certificacao === codigo).length;
+  const count = _notesGetArr(table).filter(n => n.equipa === equipa && n.email === email && n.codigo_certificacao === codigo).length;
   btn.classList.toggle("has-notes", count > 0);
   btn.title = `${count} nota(s)`;
   btn.innerHTML = count > 0 ? `<span class="notes-badge">${count}</span>` : "+";
@@ -1393,7 +1424,7 @@ function setupPlaneamentoEdition() {
       const notesBtn = t.closest(".notes-trigger");
       if (notesBtn) {
         if (_notesPopover && _notesAnchorBtn === notesBtn) { closeNotesPopover(); return; }
-        openNotesPopover(notesBtn.dataset.notesEquipa, notesBtn.dataset.notesEmail, notesBtn.dataset.notesCodigo, notesBtn);
+        openNotesPopover(notesBtn.dataset.notesEquipa, notesBtn.dataset.notesEmail, notesBtn.dataset.notesCodigo, notesBtn, "planeamento_notas");
         return;
       }
       if (t.dataset.paction === "delete-row") {
