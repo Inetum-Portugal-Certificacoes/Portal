@@ -1751,31 +1751,46 @@ async function loadIndNewCertsChart(teamFilter = "") {
 
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/stay_certified?select=data_certificacao,data_expiracao${team}&limit=5000`,
+      `${SUPABASE_URL}/rest/v1/stay_certified?select=data_certificacao,data_expiracao,expirado${team}&limit=5000`,
       { headers: supabaseHeaders() }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const rows = await res.json();
 
-    const newMap   = new Map(); // YYYY-MM → count (new certs: year diff == 1)
-    const renovMap = new Map(); // YYYY-MM → count (renewals: year diff != 1, plotted at expiry-1y)
-
+    // Novas certificações: count by data_certificacao month
+    const newMap = new Map();
     for (const r of rows) {
       if (!r.data_certificacao) continue;
-      const certYear = parseInt(r.data_certificacao.slice(0, 4));
-      const certYM   = r.data_certificacao.slice(0, 7);
-      const expYear  = r.data_expiracao ? parseInt(r.data_expiracao.slice(0, 4)) : null;
-      const isRenew  = expYear !== null && (expYear - certYear) !== 1;
+      const certYM = r.data_certificacao.slice(0, 7);
+      if (certYM >= rangeStart && certYM <= rangeEnd)
+        newMap.set(certYM, (newMap.get(certYM) || 0) + 1);
+    }
 
-      if (!isRenew) {
-        // Nova certificação — plot by data_certificacao
-        if (certYM >= rangeStart && certYM <= rangeEnd)
-          newMap.set(certYM, (newMap.get(certYM) || 0) + 1);
-      } else {
-        // Renovação — plot at data_expiracao - 1 year
-        const renewYM = `${expYear - 1}-${r.data_expiracao.slice(5, 7)}`;
-        if (renewYM >= rangeStart && renewYM <= rangeEnd)
-          renovMap.set(renewYM, (renovMap.get(renewYM) || 0) + 1);
+    // Renovações por mês (year, MM):
+    //   - cert é válida (expirado != true)
+    //   - data_expiracao é no mesmo mês do ano seguinte: YYYY-MM = (year+1)-MM
+    //   - data_certificacao NÃO é do ano em questão (year)
+    // Pré-índice: expiry YYYY-MM → [{certYear, valid}]
+    const expiryIdx = new Map();
+    for (const r of rows) {
+      if (!r.data_expiracao || !r.data_certificacao) continue;
+      const expYM = r.data_expiracao.slice(0, 7);
+      if (!expiryIdx.has(expYM)) expiryIdx.set(expYM, []);
+      expiryIdx.get(expYM).push({
+        certYear: parseInt(r.data_certificacao.slice(0, 4)),
+        valid: !(r.expirado === true || r.expirado === 'X')
+      });
+    }
+
+    const renovMap = new Map();
+    for (let year = startYear; year <= endYear; year++) {
+      for (let mIdx = 0; mIdx < 12; mIdx++) {
+        const MM        = String(mIdx + 1).padStart(2, "0");
+        const plotYM    = `${year}-${MM}`;
+        const targetExp = `${year + 1}-${MM}`;   // expiry: same month, next year
+        const candidates = expiryIdx.get(targetExp) || [];
+        const count = candidates.filter(c => c.valid && c.certYear !== year).length;
+        if (count > 0) renovMap.set(plotYM, count);
       }
     }
 
