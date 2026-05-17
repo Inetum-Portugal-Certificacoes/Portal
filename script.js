@@ -633,6 +633,7 @@ function setupStayCertifiedEdition() {
         await saveStayDirtyRows();
         await loadStayCertifiedTable();
         updateStaySaveAllBtnState(saveAllBtn);
+        addRowBtn.disabled = false;
       } catch (err) {
         console.error(err);
         await _modal.alert("Erro ao guardar os dados. Tenta novamente.", "Erro");
@@ -643,7 +644,9 @@ function setupStayCertifiedEdition() {
   }
 
   addRowBtn.addEventListener("click", () => {
+    if (newRowDraft !== null) return;
     startNewRow();
+    addRowBtn.disabled = true;
     updateStaySaveAllBtnState(saveAllBtn);
   });
 
@@ -678,6 +681,7 @@ function setupStayCertifiedEdition() {
       }
       if (target.id === "cancelNewRowBtn") {
         newRowDraft = null;
+        addRowBtn.disabled = false;
         updateStaySaveAllBtnState(saveAllBtn);
         renderStayTable();
       }
@@ -1440,6 +1444,7 @@ function setupPlaneamentoEdition() {
         await savePlanDirtyRows();
         await loadPlaneamentoTable();
         updateSaveAllBtnState(saveAllBtn);
+        addRowBtn.disabled = false;
       } catch (err) {
         console.error(err);
         await _modal.alert("Erro ao guardar os dados. Tenta novamente.", "Erro");
@@ -1450,7 +1455,9 @@ function setupPlaneamentoEdition() {
   }
 
   addRowBtn.addEventListener("click", () => {
+    if (planNewRowDraft !== null) return;
     planNewRowDraft = {};
+    addRowBtn.disabled = true;
     if (!_savedPlanVisibleColumns) {
       _savedPlanVisibleColumns = { ...planVisibleColumns };
       PLAN_COLUMN_KEYS.forEach(k => { if (k !== "acoes") planVisibleColumns[k] = true; });
@@ -1495,6 +1502,7 @@ function setupPlaneamentoEdition() {
       }
       if (t.id === "cancelPlanNewRowBtn") {
         planNewRowDraft = null;
+        addRowBtn.disabled = false;
         updateSaveAllBtnState(saveAllBtn);
         renderPlanTable();
       }
@@ -1636,40 +1644,42 @@ async function loadIndChart(teamFilter = "") {
   const now       = new Date();
   const startYear = now.getFullYear() - 1;
   const endYear   = now.getFullYear();
-  const team      = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
+  const teamQ     = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
 
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/indicadores?select=ano,mes,certificacoes,consultores${team}&order=ano,mes`,
+      `${SUPABASE_URL}/rest/v1/stay_certified?select=email,data_certificacao,data_expiracao${teamQ}&limit=10000`,
       { headers: supabaseHeaders() }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const rows = await res.json();
 
-    // Build lookup grouped by ano+mes (sum across teams when no filter)
-    const lookup = new Map();
-    for (const r of rows) {
-      const key = `${r.ano}-${r.mes}`;
-      if (lookup.has(key)) {
-        const e = lookup.get(key);
-        e.certificacoes += (r.certificacoes || 0);
-        e.consultores   += (r.consultores   || 0);
-      } else {
-        lookup.set(key, { certificacoes: r.certificacoes || 0, consultores: r.consultores || 0 });
-      }
-    }
-
-    // Build month range Jan(startYear) → Dec(endYear)
+    // Compute valid certs and unique consultores for each month
+    // A cert is "valid in month M" when:
+    //   data_certificacao.slice(0,7) <= M   (obtained by that month)
+    //   data_expiracao.slice(0,7)    >= M   (not yet expired before that month)
     const labels  = [];
     const certs   = [];
     const consult = [];
 
     for (let year = startYear; year <= endYear; year++) {
       for (let mIdx = 0; mIdx < 12; mIdx++) {
-        const entry = lookup.get(`${year}-${mIdx + 1}`);
+        const M = `${year}-${String(mIdx + 1).padStart(2, "0")}`;
         labels.push(`${MES_ORDER[mIdx].slice(0, 3)} ${year}`);
-        certs.push(entry  ? entry.certificacoes : null);
-        consult.push(entry ? entry.consultores   : null);
+
+        const valid = rows.filter(r =>
+          r.data_certificacao && r.data_expiracao &&
+          r.data_certificacao.slice(0, 7) <= M &&
+          r.data_expiracao.slice(0, 7)    >= M
+        );
+
+        if (valid.length) {
+          certs.push(valid.length);
+          consult.push(new Set(valid.map(r => (r.email || "").toLowerCase().trim())).size);
+        } else {
+          certs.push(null);
+          consult.push(null);
+        }
       }
     }
 
