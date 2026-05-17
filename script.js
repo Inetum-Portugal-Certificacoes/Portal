@@ -796,15 +796,16 @@ const MES_OPTIONS = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Jun
 const STATUS_OPTIONS = ["Planeado", "Cancelado"];
 
 // quarter é coluna gerada no Supabase (calculada a partir de mes_certificacao)
-const PLAN_COLUMN_KEYS = ["equipa", "quarter", "mes_certificacao", "email", "codigo_certificacao", "nome_certificacao", "site", "status", "acoes"];
+const PLAN_COLUMN_KEYS = ["equipa", "quarter", "mes_certificacao", "email", "codigo_certificacao", "nome_certificacao", "site", "status", "notas", "acoes"];
 const PLAN_COLUMN_LABELS = {
   equipa: "Equipa", quarter: "Quarter", mes_certificacao: "Mês Certif.", email: "Email",
   codigo_certificacao: "Código", nome_certificacao: "Certificação",
-  site: "Site", status: "Status", acoes: "Ações"
+  site: "Site", status: "Status", notas: "Notas", acoes: "Ações"
 };
 
 let planRows = [];
 let planDisplayedRows = [];
+let planNotes = [];
 let planEditMode = false;
 let planNewRowDraft = null;
 let planSortState = { key: "mes_certificacao", direction: "asc" };
@@ -880,6 +881,12 @@ function renderPlanTable() {
   };
 
   const rowsHtml = planDisplayedRows.map((r, idx) => {
+    const rowNotes = planNotes.filter(n => n.equipa === r.equipa && n.email === r.email && n.codigo_certificacao === r.codigo_certificacao);
+    const notesBtnHtml = `<button class="notes-trigger${rowNotes.length > 0 ? ' has-notes' : ''}"
+      data-notes-equipa="${escapeHtml(r.equipa ?? '')}"
+      data-notes-email="${escapeHtml(r.email)}"
+      data-notes-codigo="${escapeHtml(r.codigo_certificacao)}"
+      title="${rowNotes.length} nota(s)">${rowNotes.length > 0 ? `<span class="notes-badge">${rowNotes.length}</span>` : '+'}</button>`;
     if (!planEditMode) {
       return `<tr>
         <td class="col-equipa">${escapeHtml(r.equipa ?? "")}</td>
@@ -890,6 +897,7 @@ function renderPlanTable() {
         <td class="col-nome_certificacao">${escapeHtml(r.nome_certificacao)}</td>
         <td class="col-site">${escapeHtml(r.site)}</td>
         <td class="col-status">${statusBadge(r.status)}</td>
+        <td class="col-notas">${notesBtnHtml}</td>
         <td class="col-acoes">-</td>
       </tr>`;
     }
@@ -905,6 +913,7 @@ function renderPlanTable() {
       <td class="col-nome_certificacao"><input data-pfield="nome_certificacao" data-pidx="${idx}" value="${escapeHtml(r.nome_certificacao)}" /></td>
       <td class="col-site">${siteSelect("site", idx, r.site)}</td>
       <td class="col-status">${statusSel}</td>
+      <td class="col-notas">${notesBtnHtml}</td>
       <td class="col-acoes"><div class="row-actions">
         <button class="mini-btn cancel" data-paction="delete-row" data-pidx="${idx}" title="Eliminar">🗑</button>
       </div></td>
@@ -924,6 +933,7 @@ function renderPlanTable() {
     <td class="col-nome_certificacao"><input data-pnew="nome_certificacao" /></td>
     <td class="col-site"><select data-pnew="site">${newSiteOpts}</select></td>
     <td class="col-status"><select data-pnew="status">${newStatusOpts}</select></td>
+    <td class="col-notas">—</td>
     <td class="col-acoes"><div class="row-actions">
       <button class="mini-btn cancel" id="cancelPlanNewRowBtn" title="Cancelar">✕</button>
     </div></td>
@@ -1046,6 +1056,8 @@ async function loadPlaneamentoTable() {
     const res = await fetch(url, { headers: supabaseHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     planRows = await res.json();
+    const nr = await fetch(`${SUPABASE_URL}/rest/v1/planeamento_notas?select=*&order=created_at.asc`, { headers: supabaseHeaders() });
+    planNotes = nr.ok ? await nr.json() : [];
     buildPlanDataLists(planRows);
     renderPlanTeamTiles(planRows);
     renderPlanTable();
@@ -1119,6 +1131,145 @@ function updateSaveAllBtnState(saveAllBtn) {
   saveAllBtn.classList.toggle("has-changes", hasPending);
 }
 
+// ── NOTES POPOVER ─────────────────────────────────────────────────────────────
+
+function formatNoteDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const dd   = String(d.getDate()).padStart(2, "0");
+  const mm   = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const hh   = String(d.getHours()).padStart(2, "0");
+  const min  = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+}
+
+let _notesPopover = null;
+let _notesAnchorBtn = null;
+
+function _notesOutsideClick(e) {
+  if (_notesPopover && !_notesPopover.contains(e.target) &&
+      e.target !== _notesAnchorBtn && !_notesAnchorBtn?.contains(e.target)) {
+    closeNotesPopover();
+  }
+}
+
+function closeNotesPopover() {
+  if (_notesPopover) { _notesPopover.remove(); _notesPopover = null; }
+  _notesAnchorBtn = null;
+  document.removeEventListener("click", _notesOutsideClick, true);
+}
+
+function openNotesPopover(equipa, email, codigo, anchorEl) {
+  closeNotesPopover();
+  _notesAnchorBtn = anchorEl;
+  const notes = planNotes.filter(n => n.equipa === equipa && n.email === email && n.codigo_certificacao === codigo);
+
+  const pop = document.createElement("div");
+  pop.className = "notes-popover";
+  pop.innerHTML = `
+    <div class="notes-popover-header">
+      <span>Notas</span>
+      <button class="notes-popover-close" title="Fechar">✕</button>
+    </div>
+    <div class="notes-list">
+      ${notes.length
+        ? notes.map(n => `<div class="note-item" data-note-id="${escapeHtml(n.id_nota)}">
+            <div class="note-meta">${formatNoteDate(n.created_at)}</div>
+            <div class="note-text">${escapeHtml(n.nota)}</div>
+            <button class="note-delete" data-note-id="${escapeHtml(n.id_nota)}" title="Eliminar">🗑</button>
+          </div>`).join("")
+        : '<p class="notes-empty">Sem notas.</p>'}
+    </div>
+    <div class="notes-add-row">
+      <textarea class="notes-input" placeholder="Nova nota..." rows="2"></textarea>
+      <button class="notes-add-btn">Adicionar</button>
+    </div>`;
+
+  document.body.appendChild(pop);
+  _notesPopover = pop;
+
+  const rect = anchorEl.getBoundingClientRect();
+  const popW = 320;
+  let left = rect.left + window.scrollX;
+  let top  = rect.bottom + window.scrollY + 6;
+  if (left + popW > window.innerWidth - 8) left = Math.max(8, window.innerWidth - popW - 8);
+  pop.style.left = `${left}px`;
+  pop.style.top  = `${top}px`;
+
+  pop.querySelector(".notes-popover-close").addEventListener("click", closeNotesPopover);
+
+  const addBtn  = pop.querySelector(".notes-add-btn");
+  const textarea = pop.querySelector(".notes-input");
+  addBtn.addEventListener("click", async () => {
+    const text = textarea.value.trim();
+    if (!text) return;
+    addBtn.disabled = true;
+    try {
+      await addNote(equipa, email, codigo, text);
+      textarea.value = "";
+    } catch (err) { console.error(err); }
+    finally { addBtn.disabled = false; }
+  });
+
+  pop.querySelector(".notes-list").addEventListener("click", async e => {
+    const btn = e.target.closest(".note-delete");
+    if (!btn) return;
+    btn.disabled = true;
+    try { await deleteNote(btn.dataset.noteId, equipa, email, codigo); }
+    catch (err) { console.error(err); btn.disabled = false; }
+  });
+
+  setTimeout(() => document.addEventListener("click", _notesOutsideClick, true), 0);
+}
+
+async function addNote(equipa, email, codigo, nota) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/planeamento_notas`,
+    { method: "POST", headers: supabaseHeaders({ Prefer: "return=representation" }),
+      body: JSON.stringify({ equipa, email, codigo_certificacao: codigo, nota }) });
+  if (!res.ok) throw new Error(`POST note failed ${res.status}`);
+  const [newNote] = await res.json();
+  planNotes.push(newNote);
+  if (_notesPopover) {
+    const list = _notesPopover.querySelector(".notes-list");
+    const empty = list.querySelector(".notes-empty");
+    if (empty) empty.remove();
+    const item = document.createElement("div");
+    item.className = "note-item";
+    item.dataset.noteId = newNote.id_nota;
+    item.innerHTML = `<div class="note-meta">${formatNoteDate(newNote.created_at)}</div>
+      <div class="note-text">${escapeHtml(newNote.nota)}</div>
+      <button class="note-delete" data-note-id="${escapeHtml(newNote.id_nota)}" title="Eliminar">🗑</button>`;
+    list.appendChild(item);
+  }
+  _updateNotesTrigger(equipa, email, codigo);
+}
+
+async function deleteNote(id_nota, equipa, email, codigo) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/planeamento_notas?id_nota=eq.${encodeURIComponent(id_nota)}`,
+    { method: "DELETE", headers: supabaseHeaders() });
+  if (!res.ok) throw new Error(`DELETE note failed ${res.status}`);
+  planNotes = planNotes.filter(n => n.id_nota !== id_nota);
+  if (_notesPopover) {
+    _notesPopover.querySelector(`[data-note-id="${CSS.escape(id_nota)}"].note-item`)?.remove();
+    const list = _notesPopover.querySelector(".notes-list");
+    if (list && !list.querySelector(".note-item"))
+      list.innerHTML = '<p class="notes-empty">Sem notas.</p>';
+  }
+  _updateNotesTrigger(equipa, email, codigo);
+}
+
+function _updateNotesTrigger(equipa, email, codigo) {
+  const btn = document.querySelector(
+    `.notes-trigger[data-notes-equipa="${CSS.escape(equipa)}"][data-notes-email="${CSS.escape(email)}"][data-notes-codigo="${CSS.escape(codigo)}"]`
+  );
+  if (!btn) return;
+  const count = planNotes.filter(n => n.equipa === equipa && n.email === email && n.codigo_certificacao === codigo).length;
+  btn.classList.toggle("has-notes", count > 0);
+  btn.title = `${count} nota(s)`;
+  btn.innerHTML = count > 0 ? `<span class="notes-badge">${count}</span>` : "+";
+}
+
 function setupPlaneamentoEdition() {
   const toggleBtn  = document.getElementById("planToggleEditBtn");
   const addRowBtn  = document.getElementById("planAddRowBtn");
@@ -1129,7 +1280,7 @@ function setupPlaneamentoEdition() {
 
   if (exportBtn) {
     exportBtn.addEventListener("click", () => {
-      const exportCols   = PLAN_COLUMN_KEYS.filter(k => k !== "acoes");
+      const exportCols   = PLAN_COLUMN_KEYS.filter(k => k !== "acoes" && k !== "notas");
       const exportLabels = exportCols.map(k => PLAN_COLUMN_LABELS[k]);
       const today = new Date().toISOString().slice(0, 10);
       exportToExcel(planDisplayedRows, exportCols, exportLabels, `planeamento_${today}.xlsx`);
@@ -1239,6 +1390,12 @@ function setupPlaneamentoEdition() {
     const t = e.target;
     if (!(t instanceof HTMLElement)) return;
     try {
+      const notesBtn = t.closest(".notes-trigger");
+      if (notesBtn) {
+        if (_notesPopover && _notesAnchorBtn === notesBtn) { closeNotesPopover(); return; }
+        openNotesPopover(notesBtn.dataset.notesEquipa, notesBtn.dataset.notesEmail, notesBtn.dataset.notesCodigo, notesBtn);
+        return;
+      }
       if (t.dataset.paction === "delete-row") {
         await deletePlanRow(Number(t.dataset.pidx));
         planDirtySet.clear();
