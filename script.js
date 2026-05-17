@@ -1892,7 +1892,6 @@ async function loadIndNewCertsChart(teamFilter = "") {
 function showIndNewCertsDrill(ym, year, mIdx) {
   const panel   = document.getElementById("indNewCertsDrill");
   const titleEl = document.getElementById("indDrillTitle");
-  const linkEl  = document.getElementById("indDrillLink");
   const tbody   = document.getElementById("indDrillBody");
   if (!panel || !tbody) return;
 
@@ -1911,10 +1910,6 @@ function showIndNewCertsDrill(ym, year, mIdx) {
   );
 
   titleEl.textContent = `${mesNome} ${year} — Novas: ${novaRows.length} · Renovações: ${renovRows.length}`;
-
-  linkEl.href = indTeamFilter
-    ? `/Portal/certificacoes?filter_equipa=${encodeURIComponent(indTeamFilter)}`
-    : `/Portal/certificacoes`;
 
   const buildRows = rows => rows.map(r => {
     const certUrl = `/Portal/certificacoes?filter_email=${encodeURIComponent(r.email || "")}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao || "")}`;
