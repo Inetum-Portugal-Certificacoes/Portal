@@ -1170,7 +1170,7 @@ async function loadHomeTotals() {
         const li = e.target.closest("[data-drill-email]");
         if (li) {
           sessionStorage.setItem("drillScrollTo", "homeRanking");
-          window.location.href = `/Inetum-Certificacoes/stay-certified?filter_email=${encodeURIComponent(li.dataset.drillEmail)}`;
+          window.location.href = `/Portal/certificacoes?filter_email=${encodeURIComponent(li.dataset.drillEmail)}`;
         }
       });
     }
@@ -1243,7 +1243,7 @@ async function loadHomeTotals() {
             const code = certCodes[elements[0].index];
             if (code && code !== "Outros") {
               sessionStorage.setItem("drillScrollTo", "homeCertChart");
-              window.location.href = `/Inetum-Certificacoes/stay-certified?filter_codigo_certificacao=${encodeURIComponent(code)}`;
+              window.location.href = `/Portal/certificacoes?filter_codigo_certificacao=${encodeURIComponent(code)}`;
             }
           },
           scales: {
@@ -1298,7 +1298,7 @@ async function loadHomeTotals() {
             const site = siteLabels[elements[0].index];
             if (site) {
               sessionStorage.setItem("drillScrollTo", "homeSiteChart");
-              window.location.href = `/Inetum-Certificacoes/stay-certified?filter_site=${encodeURIComponent(site)}`;
+              window.location.href = `/Portal/certificacoes?filter_site=${encodeURIComponent(site)}`;
             }
           },
           scales: {
@@ -1372,7 +1372,7 @@ async function loadAlertCounters(teamFilter = "") {
         if (r.data_expiracao <= in15)      { cls = "danger";  label = "15 dias"; }
         else if (r.data_expiracao <= in30) { cls = "warning"; label = "30 dias"; }
         else                               { cls = "green";   label = "60 dias"; }
-        const href = `/Inetum-Certificacoes/stay-certified?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`;
+        const href = `/Portal/certificacoes?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`;
         return `<div class="alert-card alert-card--${cls}" data-href="${escapeHtml(href)}" role="button" tabindex="0">
           <span class="alert-card-badge alert-card-badge--${cls}">${label}</span>
           <span class="alert-card-equipa">${escapeHtml(r.equipa || '—')}</span>
@@ -1452,7 +1452,7 @@ async function loadPlanAlerts(teamFilter = "") {
         return;
       }
       listEl.innerHTML = allCards.map(({ r, cls, label }) => {
-        const href = `/Inetum-Certificacoes/novas-certificacoes?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`;
+        const href = `/Portal/planeamento?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`;
         return `<div class="alert-card alert-card--${cls}" data-href="${escapeHtml(href)}" role="button" tabindex="0">
           <span class="alert-card-badge alert-card-badge--${cls}">${escapeHtml(label)}</span>
           <span class="alert-card-equipa">${escapeHtml(r.equipa || '—')}</span>
