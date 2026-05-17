@@ -172,7 +172,7 @@ h1, h2, h3, h4 { font-weight: 700; line-height: 1.2; }
 /* ── LAYOUT ──────────────────────────────────────────── */
 .main-content { padding: 60px 24px 80px; }
 .container-wide { max-width: 1480px; margin: 0 auto; }
-.content-section { margin-bottom: 52px; }
+.content-section { margin-bottom: 80px; }
 
 /* ── SECTION TITLE ───────────────────────────────────── */
 .section-title { margin-bottom: 28px; }
