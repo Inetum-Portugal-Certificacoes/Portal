@@ -580,7 +580,7 @@ function setupLayoutExtras() {
   }
 
   // Back button — inject on all pages except home
-  const isHome = window.location.pathname === "/" || window.location.pathname === "/index.html";
+  const isHome = !!document.querySelector(".hero-tall");
   if (!isHome) {
     const heroContent = document.querySelector(".hero-content");
     if (heroContent) {
