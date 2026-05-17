@@ -399,6 +399,8 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .kpi-sm { padding: 14px 16px; }
 .kpi-sm p { font-size: .75rem; }
 .kpi-sm strong { margin-top: 6px; font-size: 1.4rem; }
+.kpi-danger { border-color: rgba(255,80,80,.25); }
+.kpi-danger strong { background: none; -webkit-text-fill-color: #ff6060; color: #ff6060; }
 /* ── ALERT CARD LIST ─────────────────────────────────── */
 .alert-card-list { display: flex; flex-direction: column; gap: 6px; margin-top: 20px; }
 .alert-list-empty { color: var(--text-muted); text-align: center; padding: 24px 0; font-size: .9rem; }

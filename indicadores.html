@@ -54,7 +54,7 @@
             <h2>Overview</h2>
             <p>Indicadores de desempenho e métricas de certificação</p>
           </div>
-          <div class="kpi-grid kpi-grid-3">
+          <div class="kpi-grid">
             <article class="kpi kpi-sm">
               <p>Certificações Válidas</p>
               <strong id="indTotalCerts">—</strong>
@@ -67,6 +67,10 @@
               <p>Consultores Externos</p>
               <strong id="indTotalExternos">—</strong>
             </article>
+            <article class="kpi kpi-sm kpi-danger">
+              <p>Certificações Perdidas</p>
+              <strong id="indTotalPerdidas">—</strong>
+            </article>
           </div>
         </section>
 
@@ -78,6 +82,18 @@
           <div class="glass-panel">
             <div class="chart-wrap" style="position:relative; min-height:320px;">
               <canvas id="indEvolutionChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <section class="content-section reveal">
+          <div class="section-title">
+            <h2>Novas Certificações & Renovações</h2>
+            <p>Certificações novas e renovações realizadas ao longo do tempo</p>
+          </div>
+          <div class="glass-panel">
+            <div class="chart-wrap" style="position:relative; min-height:320px;">
+              <canvas id="indNewCertsChart"></canvas>
             </div>
           </div>
         </section>

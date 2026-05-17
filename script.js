@@ -1545,28 +1545,33 @@ loadPlaneamentoTable();
 
 let indTeamFilter = "";
 let _indEvolutionChart = null;
+let _indNewCertsChart  = null;
 
 async function loadIndOverview(teamFilter = "") {
   const elCerts    = document.getElementById("indTotalCerts");
   const elConsult  = document.getElementById("indTotalConsultores");
   const elExternos = document.getElementById("indTotalExternos");
-  if (!elCerts && !elConsult && !elExternos) return;
+  const elPerdidas = document.getElementById("indTotalPerdidas");
+  if (!elCerts && !elConsult && !elExternos && !elPerdidas) return;
 
   const setText = (el, v) => { if (el) el.textContent = v; };
-  setText(elCerts, "…"); setText(elConsult, "…"); setText(elExternos, "…");
+  setText(elCerts, "…"); setText(elConsult, "…"); setText(elExternos, "…"); setText(elPerdidas, "…");
 
-  const valid = "expirado=not.is.true";
-  const team  = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
-  const base  = `${SUPABASE_URL}/rest/v1/stay_certified`;
+  const valid    = "expirado=not.is.true";
+  const expired  = "expirado=is.true";
+  const team     = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
+  const base     = `${SUPABASE_URL}/rest/v1/stay_certified`;
 
   try {
-    const [resCount, resRows] = await Promise.all([
+    const [resCount, resRows, resExpired] = await Promise.all([
       fetch(`${base}?select=email&${valid}${team}&limit=1`, { headers: supabaseHeaders({ Prefer: "count=exact" }) }),
-      fetch(`${base}?select=email,externo&${valid}${team}&limit=5000`, { headers: supabaseHeaders() })
+      fetch(`${base}?select=email,externo&${valid}${team}&limit=5000`, { headers: supabaseHeaders() }),
+      fetch(`${base}?select=email&${expired}${team}&limit=1`, { headers: supabaseHeaders({ Prefer: "count=exact" }) })
     ]);
 
     const parseCR = r => { const m = (r.headers.get("content-range") || "").match(/\/(\d+)$/); return m ? Number(m[1]) : "?"; };
     setText(elCerts, parseCR(resCount));
+    setText(elPerdidas, parseCR(resExpired));
 
     if (resRows.ok) {
       const rows = await resRows.json();
@@ -1577,7 +1582,7 @@ async function loadIndOverview(teamFilter = "") {
     }
   } catch (err) {
     console.error("Erro ao carregar overview de indicadores:", err);
-    setText(elCerts, "—"); setText(elConsult, "—"); setText(elExternos, "—");
+    setText(elCerts, "—"); setText(elConsult, "—"); setText(elExternos, "—"); setText(elPerdidas, "—");
   }
 }
 
@@ -1614,6 +1619,7 @@ async function loadIndTeams() {
       render();
       loadIndOverview(indTeamFilter);
       loadIndChart(indTeamFilter);
+      loadIndNewCertsChart(indTeamFilter);
     });
   } catch (err) {
     console.error("Erro ao carregar equipas de indicadores:", err);
@@ -1732,9 +1738,124 @@ async function loadIndChart(teamFilter = "") {
   }
 }
 
+async function loadIndNewCertsChart(teamFilter = "") {
+  const canvas = document.getElementById("indNewCertsChart");
+  if (!canvas) return;
+
+  const now       = new Date();
+  const startYear = now.getFullYear() - 1;
+  const endYear   = now.getFullYear();
+  const rangeStart = `${startYear}-01`;
+  const rangeEnd   = `${endYear}-12`;
+  const team = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
+
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/stay_certified?select=data_certificacao,data_expiracao${team}&limit=5000`,
+      { headers: supabaseHeaders() }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
+
+    const newMap   = new Map(); // YYYY-MM → count (new certs: year diff == 1)
+    const renovMap = new Map(); // YYYY-MM → count (renewals: year diff != 1, plotted at expiry-1y)
+
+    for (const r of rows) {
+      if (!r.data_certificacao) continue;
+      const certYear = parseInt(r.data_certificacao.slice(0, 4));
+      const certYM   = r.data_certificacao.slice(0, 7);
+      const expYear  = r.data_expiracao ? parseInt(r.data_expiracao.slice(0, 4)) : null;
+      const isRenew  = expYear !== null && (expYear - certYear) !== 1;
+
+      if (!isRenew) {
+        // Nova certificação — plot by data_certificacao
+        if (certYM >= rangeStart && certYM <= rangeEnd)
+          newMap.set(certYM, (newMap.get(certYM) || 0) + 1);
+      } else {
+        // Renovação — plot at data_expiracao - 1 year
+        const renewYM = `${expYear - 1}-${r.data_expiracao.slice(5, 7)}`;
+        if (renewYM >= rangeStart && renewYM <= rangeEnd)
+          renovMap.set(renewYM, (renovMap.get(renewYM) || 0) + 1);
+      }
+    }
+
+    const labels = [], newCerts = [], renovs = [];
+    for (let year = startYear; year <= endYear; year++) {
+      for (let mIdx = 0; mIdx < 12; mIdx++) {
+        const ym = `${year}-${String(mIdx + 1).padStart(2, "0")}`;
+        labels.push(`${MES_ORDER[mIdx].slice(0, 3)} ${year}`);
+        newCerts.push(newMap.get(ym)   || null);
+        renovs.push(renovMap.get(ym)   || null);
+      }
+    }
+
+    if (_indNewCertsChart) { _indNewCertsChart.destroy(); _indNewCertsChart = null; }
+    _indNewCertsChart = new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Novas Certificações",
+            data: newCerts,
+            backgroundColor: "rgba(233,30,140,.65)",
+            borderColor: "#E91E8C",
+            borderWidth: 1,
+            borderRadius: 3,
+            spanGaps: false
+          },
+          {
+            label: "Renovações",
+            data: renovs,
+            backgroundColor: "rgba(255,160,50,.65)",
+            borderColor: "#ffa032",
+            borderWidth: 1,
+            borderRadius: 3,
+            spanGaps: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: {
+            labels: { color: "#c8d8e8", font: { family: "Inter", size: 12 }, boxWidth: 16, padding: 20 }
+          },
+          tooltip: {
+            backgroundColor: "#0d1e2e",
+            borderColor: "rgba(255,255,255,.12)",
+            borderWidth: 1,
+            titleColor: "#e0eaf4",
+            bodyColor: "#8899aa",
+            padding: 12
+          }
+        },
+        scales: {
+          x: {
+            stacked: true,
+            grid: { color: "rgba(255,255,255,.05)" },
+            ticks: { color: "#8899aa", font: { family: "Inter", size: 11 }, maxRotation: 45 }
+          },
+          y: {
+            stacked: true,
+            grid: { color: "rgba(255,255,255,.06)" },
+            ticks: { color: "#8899aa", font: { family: "Inter", size: 11 } },
+            beginAtZero: true
+          }
+        }
+      }
+    });
+  } catch (err) {
+    console.error("Erro ao carregar gráfico de novas certificações:", err);
+  }
+}
+
 loadIndTeams();
 loadIndOverview();
 loadIndChart();
+loadIndNewCertsChart();
 
 // ── NAVBAR ALERT BADGE ────────────────────────────────────────────────────────
 
