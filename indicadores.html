@@ -82,16 +82,9 @@
             </div>
             <div class="proj-toggles-bar">
               <div class="proj-toggle-item">
-                <span class="proj-toggle-label" style="color:#ff9800">Obj. Inetum</span>
+                <span class="proj-toggle-label">Objetivos</span>
                 <label class="proj-toggle">
-                  <input type="checkbox" id="projObjInetumActive" />
-                  <span class="proj-toggle-track"><span class="proj-toggle-thumb"></span></span>
-                </label>
-              </div>
-              <div class="proj-toggle-item">
-                <span class="proj-toggle-label" style="color:#00e676">Obj. Equipa</span>
-                <label class="proj-toggle">
-                  <input type="checkbox" id="projObjEquipaActive" />
+                  <input type="checkbox" id="projObjActive" />
                   <span class="proj-toggle-track"><span class="proj-toggle-thumb"></span></span>
                 </label>
               </div>
@@ -111,7 +104,7 @@
               <div class="proj-split">
                 <div class="proj-split-left">
                   <div class="proj-input-wrap">
-                    <input id="projObjInetum" type="number" min="0" max="100" step="0.1" class="proj-input proj-input-pct" placeholder="—" />
+                    <input id="projObjInetum" type="number" min="0" max="999" step="0.1" class="proj-input proj-input-pct" placeholder="—" />
                     <span class="proj-unit">%</span>
                   </div>
                 </div>
@@ -128,7 +121,7 @@
               <div class="proj-split">
                 <div class="proj-split-left">
                   <div class="proj-input-wrap">
-                    <input id="projObjEquipa" type="number" min="0" max="100" step="0.1" class="proj-input proj-input-pct" placeholder="—" />
+                    <input id="projObjEquipa" type="number" min="0" max="999" step="0.1" class="proj-input proj-input-pct" placeholder="—" />
                     <span class="proj-unit">%</span>
                   </div>
                 </div>
@@ -141,9 +134,14 @@
             </article>
 
             <article class="kpi kpi-sm proj-tile">
-              <p>Cobertura de Planeamento</p>
-              <strong id="projPlaneamentoTotal">—</strong>
-              <span id="projPlaneamentoDetail" class="proj-calc-label"></span>
+              <p>Com Planeamento</p>
+              <div class="proj-plan-row">
+                <span id="projPlanCert">—</span>
+                <span class="proj-plan-op">+</span>
+                <span id="projPlanPlan">—</span>
+                <span class="proj-plan-op">=</span>
+                <strong id="projPlaneamentoTotal">—</strong>
+              </div>
             </article>
 
           </div>

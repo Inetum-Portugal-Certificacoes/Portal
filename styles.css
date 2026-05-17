@@ -456,8 +456,14 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .proj-input::-webkit-outer-spin-button,
 .proj-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .proj-input:focus { border-color: var(--accent); }
-.proj-input-pct { font-size: 1.2rem; }
+.proj-input-pct { font-size: 1.1rem; width: 72px; }
 .proj-unit { color: var(--text-muted); font-size: 1rem; font-weight: 600; white-space: nowrap; }
+
+/* Com Planeamento row */
+.proj-plan-row { display: flex; align-items: baseline; gap: 7px; margin-top: 8px; flex-wrap: wrap; }
+.proj-plan-row > span:not(.proj-plan-op) { font-size: 1.3rem; font-weight: 700; color: var(--text-primary); }
+.proj-plan-row > strong { font-size: 1.5rem; font-weight: 800; color: var(--text-primary); }
+.proj-plan-op { color: var(--text-muted); font-size: .95rem; font-weight: 500; }
 
 /* split tile layout (left % | divider | right calc) */
 .proj-split { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
@@ -480,9 +486,8 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 }
 .proj-toggle input:checked ~ .proj-toggle-track .proj-toggle-thumb { transform: translateX(16px); background: #fff; }
 
-/* section-level toggle colours matching chart lines */
-.proj-toggle-item:has(#projObjInetumActive) .proj-toggle input:checked ~ .proj-toggle-track { background: #ff9800; }
-.proj-toggle-item:has(#projObjEquipaActive)  .proj-toggle input:checked ~ .proj-toggle-track { background: #00e676; }
+/* section-level toggle colour */
+.proj-toggle-item:has(#projObjActive) .proj-toggle input:checked ~ .proj-toggle-track { background: var(--accent); }
 
 /* accent border glow when active */
 #projObjInetumTile:not(.proj-inactive) { border-color: rgba(255,152,0,.35); }
