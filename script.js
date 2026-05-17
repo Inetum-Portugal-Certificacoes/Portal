@@ -793,7 +793,6 @@ setupLayoutExtras();
 setupColumnMenu();
 applyColumnVisibility();
 setupStayCertifiedEdition();
-setupUpdateIndicadoresBtn();
 
 function setupUpdateIndicadoresBtn() {
   const btn = document.getElementById("updateIndicadoresBtn");
@@ -865,6 +864,7 @@ function setupUpdateIndicadoresBtn() {
   });
 })();
 
+setupUpdateIndicadoresBtn();
 loadStayCertifiedTable();
 
 // ── PLANEAMENTO ──────────────────────────────────────────────────────────────
