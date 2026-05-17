@@ -210,6 +210,7 @@ h1, h2, h3, h4 { font-weight: 700; line-height: 1.2; }
   transition: all .2s;
 }
 .icon-btn:hover { background: rgba(255,255,255,.11); color: #fff; border-color: rgba(255,255,255,.22); }
+.icon-btn:disabled { opacity: .3; pointer-events: none; cursor: not-allowed; }
 .icon-btn.active { background: rgba(233,30,140,.18); color: var(--pink); border-color: rgba(233,30,140,.4); }
 .icon-btn.has-changes { background: rgba(0,200,100,.15); color: var(--green); border-color: rgba(0,200,100,.4); }
 .icon-btn.has-changes:hover { background: rgba(0,200,100,.25); }

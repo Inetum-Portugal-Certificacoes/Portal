@@ -409,6 +409,11 @@ function renderTeamTiles(rows) {
       <span class="team-tile-count">${counts[t]} cert.</span>
     </button>`
   ).join("");
+}
+
+function setupTeamTilesListener() {
+  const container = document.getElementById("teamTiles");
+  if (!container) return;
   container.addEventListener("click", (e) => {
     const tile = e.target.closest("[data-team]");
     if (!tile) return;
@@ -422,7 +427,7 @@ function renderTeamTiles(rows) {
     if (!isActive) {
       document.getElementById("certPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }, { once: true });
+  });
 }
 
 const _modal = (() => {
@@ -594,6 +599,7 @@ function setupStayCertifiedEdition() {
       editMode = true;
       toggleBtn.classList.add("active");
       addRowBtn.classList.remove("hidden");
+      addRowBtn.disabled = false;
       if (saveAllBtn) saveAllBtn.classList.remove("hidden");
       if (exportBtn)  exportBtn.classList.add("hidden");
       visibleColumns.acoes = true;
@@ -796,6 +802,7 @@ function setupLayoutExtras() {
 setupLayoutExtras();
 setupColumnMenu();
 applyColumnVisibility();
+setupTeamTilesListener();
 setupStayCertifiedEdition();
 
 function setupUpdateIndicadoresBtn() {
@@ -1405,6 +1412,7 @@ function setupPlaneamentoEdition() {
       planEditMode = true;
       toggleBtn.classList.add("active");
       addRowBtn.classList.remove("hidden");
+      addRowBtn.disabled = false;
       if (saveAllBtn) saveAllBtn.classList.remove("hidden");
       if (exportBtn)  exportBtn.classList.add("hidden");
       planVisibleColumns.acoes = true;
