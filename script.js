@@ -468,21 +468,41 @@ function updateStaySaveAllBtnState(saveAllBtn) {
   saveAllBtn.classList.toggle("has-changes", hasPending);
 }
 
-function exportToCSV(rows, columns, labels, filename) {
-  const BOM = "﻿";
-  const header = labels.join(";");
-  const body = rows.map(r =>
-    columns.map(c => {
-      const val = String(r[c] ?? "").replace(/"/g, '""');
-      return val.includes(";") || val.includes('"') || val.includes("\n") ? `"${val}"` : val;
-    }).join(";")
-  ).join("\r\n");
-  const blob = new Blob([BOM + header + "\r\n" + body], { type: "text/csv;charset=utf-8;" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
+function cleanExcelVal(col, val) {
+  if (val === null || val === undefined) return "";
+  if (typeof val === "boolean") return val ? "Sim" : "Não";
+  const s = String(val);
+  if (s === "true")  return "Sim";
+  if (s === "false") return "Não";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split("-");
+    return `${d}/${m}/${y}`;
+  }
+  return s;
+}
+
+async function exportToExcel(rows, columns, labels, filename) {
+  if (!window.XLSX) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js";
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  const XLSX = window.XLSX;
+  const data = [
+    labels,
+    ...rows.map(r => columns.map(c => cleanExcelVal(c, r[c])))
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws["!cols"] = columns.map((c, i) => {
+    const maxLen = Math.max(labels[i].length, ...rows.map(r => String(cleanExcelVal(c, r[c])).length));
+    return { wch: Math.min(Math.max(maxLen + 2, 12), 55) };
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Dados");
+  XLSX.writeFile(wb, filename);
 }
 
 function setupStayCertifiedEdition() {
@@ -498,7 +518,13 @@ function setupStayCertifiedEdition() {
       const exportCols   = COLUMN_KEYS.filter(k => k !== "acoes");
       const exportLabels = exportCols.map(k => COLUMN_LABELS[k]);
       const today = new Date().toISOString().slice(0, 10);
-      exportToCSV(displayedRows, exportCols, exportLabels, `certificacoes_${today}.csv`);
+      const processedRows = displayedRows.map(r => ({
+        ...r,
+        status_cert: (r.expirado === true || r.expirado === "X") ? "Expirado" : "Válido",
+        externo: r.externo ? "Sim" : "Não",
+        saiu:    r.saiu    ? "Sim" : "Não",
+      }));
+      exportToExcel(processedRows, exportCols, exportLabels, `certificacoes_${today}.xlsx`);
     });
   }
 
@@ -1066,7 +1092,7 @@ function setupPlaneamentoEdition() {
       const exportCols   = PLAN_COLUMN_KEYS.filter(k => k !== "acoes");
       const exportLabels = exportCols.map(k => PLAN_COLUMN_LABELS[k]);
       const today = new Date().toISOString().slice(0, 10);
-      exportToCSV(planDisplayedRows, exportCols, exportLabels, `planeamento_${today}.csv`);
+      exportToExcel(planDisplayedRows, exportCols, exportLabels, `planeamento_${today}.xlsx`);
     });
   }
 
