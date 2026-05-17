@@ -344,8 +344,12 @@ async function deleteExistingRow(idx) {
   const row = displayedRows[idx];
   if (!await _modal.confirm(`Eliminar o registo ${row.email} / ${row.codigo_certificacao}?`, "Confirmar eliminação")) return;
   const query = `equipa=eq.${encodeURIComponent(row.equipa)}&email=eq.${encodeURIComponent(row.email)}&codigo_certificacao=eq.${encodeURIComponent(row.codigo_certificacao)}`;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/stay_certified?${query}`, { method: "DELETE", headers: supabaseHeaders() });
+  const [res] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/stay_certified?${query}`, { method: "DELETE", headers: supabaseHeaders() }),
+    fetch(`${SUPABASE_URL}/rest/v1/stay_certified_notas?${query}`, { method: "DELETE", headers: supabaseHeaders() })
+  ]);
   if (!res.ok) throw new Error(`DELETE failed ${res.status}`);
+  stayNotes = stayNotes.filter(n => !(n.equipa === row.equipa && n.email === row.email && n.codigo_certificacao === row.codigo_certificacao));
 }
 
 function startNewRow() {
@@ -1106,10 +1110,13 @@ async function savePlanRow(idx) {
 async function deletePlanRow(idx) {
   const row = planDisplayedRows[idx];
   if (!await _modal.confirm(`Eliminar o registo ${row.email} / ${row.codigo_certificacao}?`, "Confirmar eliminação")) return;
-  const query = `email=eq.${encodeURIComponent(row.email)}&codigo_certificacao=eq.${encodeURIComponent(row.codigo_certificacao)}`;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/planeamento?${query}`,
-    { method: "DELETE", headers: supabaseHeaders() });
+  const query = `equipa=eq.${encodeURIComponent(row.equipa)}&email=eq.${encodeURIComponent(row.email)}&codigo_certificacao=eq.${encodeURIComponent(row.codigo_certificacao)}`;
+  const [res] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/planeamento?${query}`, { method: "DELETE", headers: supabaseHeaders() }),
+    fetch(`${SUPABASE_URL}/rest/v1/planeamento_notas?${query}`, { method: "DELETE", headers: supabaseHeaders() })
+  ]);
   if (!res.ok) throw new Error(`DELETE failed ${res.status}`);
+  planNotes = planNotes.filter(n => !(n.equipa === row.equipa && n.email === row.email && n.codigo_certificacao === row.codigo_certificacao));
 }
 
 async function insertPlanRow() {
