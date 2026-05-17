@@ -90,7 +90,7 @@ async function loadStayCertifiedTable() {
 function normalizeSortValue(value, key, row) {
   if (key === "externo" || key === "saiu") return value ? 1 : 0;
   if (key === "data_expiracao" || key === "data_certificacao") return value ? new Date(value).getTime() : 0;
-  if (key === "status_cert") return calcExpirado(row?.data_expiracao) ? 1 : 0;
+  if (key === "status_cert") return (row?.expirado === true || row?.expirado === 'X') ? 1 : 0;
   return String(value ?? "").toLowerCase();
 }
 function applyFilters(rows) {
@@ -793,6 +793,64 @@ setupLayoutExtras();
 setupColumnMenu();
 applyColumnVisibility();
 setupStayCertifiedEdition();
+setupUpdateIndicadoresBtn();
+
+function setupUpdateIndicadoresBtn() {
+  const btn = document.getElementById("updateIndicadoresBtn");
+  if (!btn) return;
+
+  const now     = new Date();
+  const ano     = now.getFullYear();
+  const mesIdx  = now.getMonth();        // 0-based
+  const mesNum  = mesIdx + 1;            // 1-based
+  const mesNome = MES_ORDER[mesIdx].slice(0, 3);
+  btn.textContent = `↑ ${mesNome} ${ano}`;
+  btn.title = `Atualizar Indicadores — ${MES_ORDER[mesIdx]} ${ano}`;
+
+  btn.addEventListener("click", async () => {
+    if (!stayRows.length) return;
+
+    // Scope: selected team or all teams
+    const selectedTeam = filterState.equipa;
+    const scope = selectedTeam ? stayRows.filter(r => r.equipa === selectedTeam) : stayRows;
+
+    // Group by equipa
+    const groups = {};
+    for (const r of scope) {
+      if (!r.equipa) continue;
+      if (!groups[r.equipa]) groups[r.equipa] = [];
+      groups[r.equipa].push(r);
+    }
+    if (!Object.keys(groups).length) return;
+
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = "…";
+
+    try {
+      for (const [equipa, rows] of Object.entries(groups)) {
+        const valid = rows.filter(r => !(r.expirado === true || r.expirado === 'X'));
+        const certificacoes = valid.length;
+        const consultores = new Set(
+          valid.map(r => (r.email || "").toLowerCase().trim()).filter(Boolean)
+        ).size;
+
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/indicadores`, {
+          method: "POST",
+          headers: { ...supabaseHeaders(), "Prefer": "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify({ ano, mes: mesNum, equipa, certificacoes, consultores })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      }
+      btn.textContent = "✓";
+      setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 1500);
+    } catch (err) {
+      console.error("Erro ao atualizar indicadores:", err);
+      btn.textContent = "✗";
+      setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 2000);
+    }
+  });
+}
 
 // Apply drilldown filters from URL query params (e.g. ?filter_email=x&filter_site=y)
 (function applyUrlFilters() {
