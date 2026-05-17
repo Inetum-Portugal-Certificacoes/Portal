@@ -588,10 +588,10 @@ input.fp-date { cursor: pointer; }
 .note-meta { font-size: .68rem; color: var(--text-muted); margin-bottom: 3px; }
 .note-text { font-size: .8rem; color: var(--text); line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
 .note-delete {
-  position: absolute; top: 8px; right: 8px;
+  position: absolute; top: 6px; right: 6px;
   background: none; border: none; cursor: pointer;
-  font-size: .8rem; padding: 2px 4px; border-radius: 4px;
-  color: var(--text-muted); opacity: .65;
+  font-size: 1rem; padding: 3px 5px; border-radius: 4px;
+  color: var(--text-muted); opacity: .75;
   transition: opacity .15s, color .15s, background .15s;
 }
 .note-delete:hover { opacity: 1; color: var(--red); background: rgba(229,57,53,.12); }
