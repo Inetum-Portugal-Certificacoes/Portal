@@ -1696,24 +1696,28 @@ async function loadIndChart(teamFilter = "") {
       dynEnd   = Math.max(dynEnd,   Math.max(...rows.map(r => r.ano)));
     }
 
-    // When team is filtered: use 0 for missing months (continuous visible line)
-    // When global view: use null (show only recorded snapshots)
-    const fillEmpty = teamFilter ? 0 : null;
-    const spanGaps  = !teamFilter;
+    const curYear  = now.getFullYear();
+    const curMonth = now.getMonth() + 1;
 
     // Build full range: Jan(startYear) → Dec(endYear) — all 24 months always visible
+    // Past/current months with team filter → 0 (continuous line); future months → null (no data)
     const labels  = [];
     const certs   = [];
     const consult = [];
 
     for (let year = startYear; year <= endYear; year++) {
       for (let mIdx = 0; mIdx < 12; mIdx++) {
-        const entry = lookup.get(`${year}-${mIdx + 1}`);
+        const month = mIdx + 1;
+        const isFuture = year > curYear || (year === curYear && month > curMonth);
+        const entry = lookup.get(`${year}-${month}`);
+        const fillEmpty = (!isFuture && teamFilter) ? 0 : null;
         labels.push(`${MES_ORDER[mIdx].slice(0, 3)} ${year}`);
         certs.push(entry  ? entry.certificacoes : fillEmpty);
         consult.push(entry ? entry.consultores   : fillEmpty);
       }
     }
+
+    const spanGaps = false;
 
     if (_indEvolutionChart) { _indEvolutionChart.destroy(); _indEvolutionChart = null; }
 
@@ -1759,7 +1763,7 @@ async function loadIndChart(teamFilter = "") {
         interaction: { mode: "index", intersect: false },
         plugins: {
           legend: {
-            labels: { color: "#c8d8e8", font: { family: "Inter", size: 12 }, boxWidth: 16, padding: 20 }
+            labels: { color: "#c8d8e8", font: { family: "Inter", size: 12 }, padding: 20, usePointStyle: true, pointStyle: "line" }
           },
           tooltip: {
             backgroundColor: "#0d1e2e",
