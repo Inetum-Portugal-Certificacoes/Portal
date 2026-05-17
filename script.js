@@ -27,6 +27,7 @@ let displayedRows = [];
 let editMode = false;
 let newRowDraft = null;
 let stayDirtySet = new Set(); // "equipa::email::codigo_certificacao" keys of rows with unsaved edits
+let _savedVisibleColumns = null;
 let sortState = { key: "email", direction: "asc" };
 const HIDDEN_BY_DEFAULT = new Set(["site", "data_certificacao", "externo", "saiu", "acoes"]);
 let visibleColumns = Object.fromEntries(COLUMN_KEYS.map((k) => [k, !HIDDEN_BY_DEFAULT.has(k)]));
@@ -335,6 +336,12 @@ async function deleteExistingRow(idx) {
 
 function startNewRow() {
   newRowDraft = { equipa: "", email: "", codigo_certificacao: "", nome_certificacao: "", site: "Lisboa", data_certificacao: "", data_expiracao: "" };
+  if (!_savedVisibleColumns) {
+    _savedVisibleColumns = { ...visibleColumns };
+    COLUMN_KEYS.forEach(k => { if (k !== "acoes") visibleColumns[k] = true; });
+    applyColumnVisibility();
+    syncStayColToggleButtons();
+  }
   renderStayTable();
   const newInputs = [...document.querySelectorAll("[data-new]")];
   const first = newInputs.find((el) => el.closest("td")?.style.display !== "none");
@@ -458,6 +465,12 @@ function setupColumnMenu() {
     applyColumnVisibility();
   });
 }
+function syncStayColToggleButtons() {
+  document.querySelectorAll("#colToggles [data-col-toggle]").forEach(btn => {
+    btn.classList.toggle("active", !!visibleColumns[btn.dataset.colToggle]);
+  });
+}
+
 function applyColumnVisibility() {
   COLUMN_KEYS.forEach((k) => {
     const show = visibleColumns[k];
@@ -551,8 +564,13 @@ function setupStayCertifiedEdition() {
     addRowBtn.classList.add("hidden");
     if (saveAllBtn) { saveAllBtn.classList.add("hidden"); saveAllBtn.classList.remove("has-changes"); }
     if (exportBtn)  exportBtn.classList.remove("hidden");
+    if (_savedVisibleColumns) {
+      Object.assign(visibleColumns, _savedVisibleColumns);
+      _savedVisibleColumns = null;
+    }
     visibleColumns.acoes = false;
     applyColumnVisibility();
+    syncStayColToggleButtons();
     if (reload) await loadStayCertifiedTable();
     else renderStayTable();
   };
@@ -794,6 +812,7 @@ const PLAN_HIDDEN_BY_DEFAULT = new Set(["site", "acoes"]);
 let planVisibleColumns = Object.fromEntries(PLAN_COLUMN_KEYS.map((k) => [k, !PLAN_HIDDEN_BY_DEFAULT.has(k)]));
 let planFilterState = { equipa: "", quarter: "", mes_certificacao: "", email: "", codigo_certificacao: "", nome_certificacao: "", site: "", status: "" };
 let planDirtySet = new Set(); // "email::codigo_certificacao" keys of rows with unsaved edits
+let _savedPlanVisibleColumns = null;
 
 function applyPlanFilters(rows) {
   return rows.filter((row) =>
@@ -928,6 +947,12 @@ function updatePlanSortHeaderUI() {
 function updatePlanTotals() {
   const c = document.getElementById("planFilteredCount");
   if (c) c.textContent = `${planDisplayedRows.length} / ${planRows.length}`;
+}
+
+function syncPlanColToggleButtons() {
+  document.querySelectorAll("#planColToggles [data-plan-col]").forEach(btn => {
+    btn.classList.toggle("active", !!planVisibleColumns[btn.dataset.planCol]);
+  });
 }
 
 function applyPlanColumnVisibility() {
@@ -1119,8 +1144,13 @@ function setupPlaneamentoEdition() {
     addRowBtn.classList.add("hidden");
     if (saveAllBtn) { saveAllBtn.classList.add("hidden"); saveAllBtn.classList.remove("has-changes"); }
     if (exportBtn)  exportBtn.classList.remove("hidden");
+    if (_savedPlanVisibleColumns) {
+      Object.assign(planVisibleColumns, _savedPlanVisibleColumns);
+      _savedPlanVisibleColumns = null;
+    }
     planVisibleColumns.acoes = false;
     applyPlanColumnVisibility();
+    syncPlanColToggleButtons();
     if (reload) await loadPlaneamentoTable();
     else renderPlanTable();
   };
@@ -1180,6 +1210,12 @@ function setupPlaneamentoEdition() {
 
   addRowBtn.addEventListener("click", () => {
     planNewRowDraft = {};
+    if (!_savedPlanVisibleColumns) {
+      _savedPlanVisibleColumns = { ...planVisibleColumns };
+      PLAN_COLUMN_KEYS.forEach(k => { if (k !== "acoes") planVisibleColumns[k] = true; });
+      applyPlanColumnVisibility();
+      syncPlanColToggleButtons();
+    }
     renderPlanTable();
     updateSaveAllBtnState(saveAllBtn);
     const first = [...document.querySelectorAll("[data-pnew]")]
