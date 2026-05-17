@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>KPI | Inetum Portugal</title>
+    <title>Indicadores | Inetum Portugal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
@@ -18,7 +18,7 @@
           <a href="/Portal/">Home</a>
           <a href="/Portal/certificacoes">Certificações</a>
           <a href="/Portal/planeamento">Planeamento</a>
-          <a class="active" href="/Portal/indicadores">KPI</a>
+          <a class="active" href="/Portal/indicadores">Indicadores</a>
           <a href="/Portal/alertas">Alertas</a>
         </div>
         <button class="hamburger" id="hamburger" aria-label="Abrir menu">
@@ -33,40 +33,66 @@
       <div class="hero-overlay"></div>
       <div class="hero-content">
         <span class="badge-label">Inetum Portugal</span>
-        <h1>KPI</h1>
-        <p class="hero-sub">Indicadores de desempenho e métricas de certificação</p>
+        <h1>Indicadores</h1>
+        <p class="hero-sub">Métricas de certificação e desempenho por equipa</p>
       </div>
     </section>
 
     <main class="main-content">
       <div class="container-wide">
 
-        <section class="content-section reveal">
+        <section class="content-section team-section-centered reveal">
           <div class="section-title">
-            <h2>Indicadores</h2>
+            <h2>Equipas</h2>
+            <p>Seleciona uma equipa para filtrar os indicadores</p>
           </div>
-          <div class="kpi-grid">
-            <article class="kpi">
-              <p>Total Certificações</p>
-              <strong id="kpiTotal">0</strong>
-            </article>
-            <article class="kpi">
-              <p>Expiram em 90 dias</p>
-              <strong id="kpiExp90">0</strong>
-            </article>
-            <article class="kpi">
-              <p>Externas</p>
-              <strong id="kpiExternas">0</strong>
-            </article>
-            <article class="kpi">
-              <p>Taxa Stay Certified</p>
-              <strong id="kpiTaxa">0%</strong>
-            </article>
-          </div>
-          <div class="chart-placeholder">Área reservada para gráficos futuros</div>
+          <div id="indTeamTiles" class="team-tiles-grid"></div>
         </section>
 
       </div>
+
+      <section class="content-section cert-section-full" id="indPanel">
+        <div class="glass-panel">
+          <div class="panel-head">
+            <h2>Indicadores</h2>
+            <div class="actions">
+              <span id="indFilteredCount" class="counter">0 / 0</span>
+              <button id="indExportBtn" class="icon-btn" type="button" title="Exportar para Excel" aria-label="Exportar para Excel">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+              <button id="indToggleEditBtn" class="icon-btn" type="button" title="Modo de edição" aria-label="Modo de edição">✎</button>
+              <button id="indAddRowBtn" class="icon-btn hidden" type="button" title="Adicionar registo" aria-label="Adicionar registo">＋</button>
+              <button id="indSaveAllBtn" class="icon-btn hidden" type="button" title="Guardar alterações" aria-label="Guardar alterações">✔</button>
+            </div>
+          </div>
+          <div id="indColToggles" class="col-toggles"></div>
+          <div class="table-wrap">
+            <table class="data-table" id="indTable">
+              <thead>
+                <tr>
+                  <th class="col-ind-ano"      data-isort="ano">Ano</th>
+                  <th class="col-ind-mes"      data-isort="mes">Mês</th>
+                  <th class="col-ind-equipa"   data-isort="equipa">Equipa</th>
+                  <th class="col-ind-certs"    data-isort="certificacoes">Certificações</th>
+                  <th class="col-ind-consult"  data-isort="consultores">Consultores</th>
+                  <th class="col-ind-acoes">Ações</th>
+                </tr>
+                <tr class="filter-row">
+                  <th class="col-ind-ano"><input     data-ifilter="ano"           placeholder="⌕" /></th>
+                  <th class="col-ind-mes"><input     data-ifilter="mes"           placeholder="⌕" /></th>
+                  <th class="col-ind-equipa"><input  data-ifilter="equipa"        placeholder="⌕" /></th>
+                  <th class="col-ind-certs"><input   data-ifilter="certificacoes" placeholder="⌕" /></th>
+                  <th class="col-ind-consult"><input data-ifilter="consultores"   placeholder="⌕" /></th>
+                  <th class="col-ind-acoes"></th>
+                </tr>
+              </thead>
+              <tbody id="indTableBody">
+                <tr><td colspan="6">A carregar registos...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </main>
 
     <footer class="footer">

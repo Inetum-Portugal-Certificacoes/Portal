@@ -1482,6 +1482,386 @@ setupPlaneamentoEdition();
 
 loadPlaneamentoTable();
 
+// ── INDICADORES ──────────────────────────────────────────────────────────────
+
+const IND_COLUMN_KEYS   = ["ano", "mes", "equipa", "certificacoes", "consultores", "acoes"];
+const IND_COLUMN_LABELS = { ano: "Ano", mes: "Mês", equipa: "Equipa", certificacoes: "Certificações", consultores: "Consultores", acoes: "Ações" };
+const IND_HIDDEN_BY_DEFAULT = new Set(["acoes"]);
+
+let indRows = [];
+let indDisplayedRows = [];
+let indEditMode = false;
+let indNewRowDraft = null;
+let indDirtySet = new Set();
+let _savedIndVisibleColumns = null;
+let indSortState = { key: "ano", direction: "desc" };
+let indVisibleColumns = Object.fromEntries(IND_COLUMN_KEYS.map(k => [k, !IND_HIDDEN_BY_DEFAULT.has(k)]));
+let indFilterState = { ano: "", mes: "", equipa: "", certificacoes: "", consultores: "" };
+
+function applyIndFilters(rows) {
+  return rows.filter(row =>
+    Object.entries(indFilterState).every(([key, val]) => {
+      const needle = String(val || "").trim().toLowerCase();
+      return !needle || String(row[key] ?? "").toLowerCase().includes(needle);
+    })
+  );
+}
+
+function getIndViewRows() {
+  const rows = applyIndFilters([...indRows]);
+  const { key, direction } = indSortState;
+  const sign = direction === "asc" ? 1 : -1;
+  rows.sort((a, b) => {
+    if (key === "ano" || key === "certificacoes" || key === "consultores") {
+      return ((Number(a[key]) || 0) - (Number(b[key]) || 0)) * sign;
+    }
+    if (key === "mes") {
+      const ia = MES_ORDER.indexOf(a.mes ?? "");
+      const ib = MES_ORDER.indexOf(b.mes ?? "");
+      return ((ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)) * sign;
+    }
+    const va = String(a[key] ?? "").toLowerCase();
+    const vb = String(b[key] ?? "").toLowerCase();
+    return va < vb ? -sign : va > vb ? sign : 0;
+  });
+  return rows;
+}
+
+function buildIndDataLists(rows) {
+  ["ano", "mes", "equipa"].forEach(field => {
+    const unique = [...new Set(rows.map(r => String(r[field] ?? "")).filter(Boolean))].sort();
+    const input = document.querySelector(`#indPanel .filter-row [data-ifilter="${field}"]`);
+    if (input) attachAutocomplete(input, unique);
+  });
+}
+
+function updateIndSortHeaderUI() {
+  document.querySelectorAll("#indTable th[data-isort]").forEach(h => {
+    h.classList.remove("sorted-asc", "sorted-desc");
+    if (h.dataset.isort === indSortState.key)
+      h.classList.add(indSortState.direction === "asc" ? "sorted-asc" : "sorted-desc");
+  });
+}
+
+function updateIndTotals() {
+  const c = document.getElementById("indFilteredCount");
+  if (c) c.textContent = `${indDisplayedRows.length} / ${indRows.length}`;
+}
+
+const IND_COL_CLASS = { ano: "col-ind-ano", mes: "col-ind-mes", equipa: "col-ind-equipa", certificacoes: "col-ind-certs", consultores: "col-ind-consult", acoes: "col-ind-acoes" };
+
+function applyIndColumnVisibility() {
+  IND_COLUMN_KEYS.forEach(k => {
+    const show = indVisibleColumns[k];
+    document.querySelectorAll(`#indTable .${IND_COL_CLASS[k]}`).forEach(el => { el.style.display = show ? "" : "none"; });
+    const fi = document.querySelector(`#indPanel [data-ifilter="${k}"]`);
+    if (fi) fi.parentElement.style.display = show ? "" : "none";
+  });
+}
+
+function syncIndColToggleButtons() {
+  document.querySelectorAll("#indColToggles [data-ind-col]").forEach(btn => {
+    btn.classList.toggle("active", !!indVisibleColumns[btn.dataset.indCol]);
+  });
+}
+
+function renderIndTable() {
+  const tbody = document.getElementById("indTableBody");
+  if (!tbody) return;
+  indDisplayedRows = getIndViewRows();
+
+  if (!indDisplayedRows.length && !indNewRowDraft) {
+    tbody.innerHTML = `<tr><td colspan="6">Sem registos.</td></tr>`;
+    updateIndTotals();
+    return;
+  }
+
+  const rowsHtml = indDisplayedRows.map((r, idx) => {
+    if (!indEditMode) {
+      return `<tr>
+        <td class="col-ind-ano">${escapeHtml(String(r.ano ?? ""))}</td>
+        <td class="col-ind-mes">${escapeHtml(r.mes ?? "")}</td>
+        <td class="col-ind-equipa">${escapeHtml(r.equipa ?? "")}</td>
+        <td class="col-ind-certs">${escapeHtml(String(r.certificacoes ?? ""))}</td>
+        <td class="col-ind-consult">${escapeHtml(String(r.consultores ?? ""))}</td>
+        <td class="col-ind-acoes">-</td>
+      </tr>`;
+    }
+    const isDirty = indDirtySet.has(r.id);
+    const mesOpts = MES_OPTIONS.map(m => `<option value="${m}" ${r.mes === m ? "selected" : ""}>${m || "—"}</option>`).join("");
+    return `<tr${isDirty ? ' class="row-dirty"' : ''}>
+      <td class="col-ind-ano"><input type="number" data-ifield="ano" data-iidx="${idx}" value="${escapeHtml(String(r.ano ?? ""))}" min="2000" max="2100" style="width:70px" /></td>
+      <td class="col-ind-mes"><select data-ifield="mes" data-iidx="${idx}">${mesOpts}</select></td>
+      <td class="col-ind-equipa"><input data-ifield="equipa" data-iidx="${idx}" value="${escapeHtml(r.equipa ?? "")}" /></td>
+      <td class="col-ind-certs"><input type="number" data-ifield="certificacoes" data-iidx="${idx}" value="${escapeHtml(String(r.certificacoes ?? 0))}" min="0" style="width:80px" /></td>
+      <td class="col-ind-consult"><input type="number" data-ifield="consultores" data-iidx="${idx}" value="${escapeHtml(String(r.consultores ?? 0))}" min="0" style="width:80px" /></td>
+      <td class="col-ind-acoes"><div class="row-actions">
+        <button class="mini-btn cancel" data-iaction="delete-row" data-iidx="${idx}" title="Eliminar">🗑</button>
+      </div></td>
+    </tr>`;
+  }).join("");
+
+  const newMesOpts = MES_OPTIONS.map(m => `<option value="${m}">${m || "—"}</option>`).join("");
+  const newRowHtml = indEditMode && indNewRowDraft ? `<tr>
+    <td class="col-ind-ano"><input type="number" data-inew="ano" min="2000" max="2100" value="${new Date().getFullYear()}" style="width:70px" /></td>
+    <td class="col-ind-mes"><select data-inew="mes">${newMesOpts}</select></td>
+    <td class="col-ind-equipa"><input data-inew="equipa" /></td>
+    <td class="col-ind-certs"><input type="number" data-inew="certificacoes" value="0" min="0" style="width:80px" /></td>
+    <td class="col-ind-consult"><input type="number" data-inew="consultores" value="0" min="0" style="width:80px" /></td>
+    <td class="col-ind-acoes"><div class="row-actions">
+      <button class="mini-btn cancel" id="cancelIndNewRowBtn" title="Cancelar">✕</button>
+    </div></td>
+  </tr>` : "";
+
+  tbody.innerHTML = rowsHtml + newRowHtml;
+  updateIndSortHeaderUI();
+  applyIndColumnVisibility();
+  updateIndTotals();
+}
+
+async function saveIndRow(idx) {
+  const row = indDisplayedRows[idx];
+  const getV = f => document.querySelector(`[data-ifield="${f}"][data-iidx="${idx}"]`)?.value?.trim() ?? "";
+  const payload = {
+    ano: Number(getV("ano")),
+    mes: getV("mes"),
+    equipa: getV("equipa"),
+    certificacoes: Number(getV("certificacoes")),
+    consultores: Number(getV("consultores")),
+    updated_at: new Date().toISOString()
+  };
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/indicadores?id=eq.${encodeURIComponent(row.id)}`,
+    { method: "PATCH", headers: supabaseHeaders({ Prefer: "return=representation" }), body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error(`PATCH failed ${res.status}`);
+}
+
+async function deleteIndRow(idx) {
+  const row = indDisplayedRows[idx];
+  if (!await _modal.confirm(`Eliminar o registo ${row.equipa} ${row.mes} ${row.ano}?`, "Confirmar eliminação")) return;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/indicadores?id=eq.${encodeURIComponent(row.id)}`,
+    { method: "DELETE", headers: supabaseHeaders() });
+  if (!res.ok) throw new Error(`DELETE failed ${res.status}`);
+}
+
+async function insertIndRow() {
+  const getV = f => document.querySelector(`[data-inew="${f}"]`)?.value?.trim() ?? "";
+  const payload = {
+    ano: Number(getV("ano")),
+    mes: getV("mes"),
+    equipa: getV("equipa"),
+    certificacoes: Number(getV("certificacoes")),
+    consultores: Number(getV("consultores")),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  if (!payload.equipa || !payload.ano || !payload.mes) {
+    await _modal.alert("Preenche os campos obrigatórios: ano, mês e equipa.");
+    return;
+  }
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/indicadores`,
+    { method: "POST", headers: supabaseHeaders({ Prefer: "return=representation" }), body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error(`POST failed ${res.status}`);
+  indNewRowDraft = null;
+}
+
+async function saveIndDirtyRows() {
+  if (indNewRowDraft !== null) await insertIndRow();
+  for (const id of indDirtySet) {
+    const idx = indDisplayedRows.findIndex(r => r.id === id);
+    if (idx >= 0) await saveIndRow(idx);
+  }
+  indDirtySet.clear();
+}
+
+function updateIndSaveAllBtnState(btn) {
+  if (!btn) return;
+  btn.classList.toggle("has-changes", indDirtySet.size > 0 || indNewRowDraft !== null);
+}
+
+function renderIndTeamTiles(rows) {
+  const container = document.getElementById("indTeamTiles");
+  if (!container) return;
+  const counts = {};
+  rows.forEach(r => { const eq = (r.equipa || "").trim() || "—"; counts[eq] = (counts[eq] || 0) + 1; });
+  const teams = Object.keys(counts).sort();
+  container.innerHTML = teams.map(t =>
+    `<button type="button" class="team-tile${indFilterState.equipa === t ? " active" : ""}" data-ind-team="${escapeHtml(t)}">
+      <span class="team-tile-name">${escapeHtml(t)}</span>
+      <span class="team-tile-count">${counts[t]} reg.</span>
+    </button>`
+  ).join("");
+  container.addEventListener("click", e => {
+    const tile = e.target.closest("[data-ind-team]");
+    if (!tile) return;
+    const team = tile.dataset.indTeam;
+    const isActive = indFilterState.equipa === team;
+    indFilterState.equipa = isActive ? "" : team;
+    const input = document.querySelector("#indPanel .filter-row [data-ifilter='equipa']");
+    if (input) input.value = indFilterState.equipa;
+    renderIndTable();
+    renderIndTeamTiles(indRows);
+    if (!isActive) document.getElementById("indPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, { once: true });
+}
+
+function setupIndColumnMenu() {
+  const container = document.getElementById("indColToggles");
+  if (!container) return;
+  container.innerHTML = IND_COLUMN_KEYS.filter(k => k !== "acoes").map(k =>
+    `<button type="button" class="col-toggle-btn${indVisibleColumns[k] ? " active" : ""}" data-ind-col="${k}">${IND_COLUMN_LABELS[k]}</button>`
+  ).join("");
+  container.addEventListener("click", e => {
+    const btn = e.target.closest("[data-ind-col]");
+    if (!btn) return;
+    indVisibleColumns[btn.dataset.indCol] = !indVisibleColumns[btn.dataset.indCol];
+    btn.classList.toggle("active", indVisibleColumns[btn.dataset.indCol]);
+    applyIndColumnVisibility();
+  });
+}
+
+async function loadIndicadoresTable() {
+  const tbody = document.getElementById("indTableBody");
+  if (!tbody) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/indicadores?select=*&order=ano.desc,mes.asc,equipa.asc&limit=2000`, { headers: supabaseHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    indRows = await res.json();
+    buildIndDataLists(indRows);
+    renderIndTeamTiles(indRows);
+    renderIndTable();
+  } catch (err) {
+    document.getElementById("indTableBody").innerHTML = `<tr><td colspan="6">Erro a carregar dados do Supabase.</td></tr>`;
+    console.error(err);
+  }
+}
+
+function setupIndicadoresEdition() {
+  const toggleBtn  = document.getElementById("indToggleEditBtn");
+  const addRowBtn  = document.getElementById("indAddRowBtn");
+  const saveAllBtn = document.getElementById("indSaveAllBtn");
+  const exportBtn  = document.getElementById("indExportBtn");
+  const tbody      = document.getElementById("indTableBody");
+  if (!toggleBtn || !addRowBtn || !tbody) return;
+
+  if (exportBtn) {
+    exportBtn.addEventListener("click", () => {
+      const cols   = IND_COLUMN_KEYS.filter(k => k !== "acoes");
+      const labels = cols.map(k => IND_COLUMN_LABELS[k]);
+      exportToExcel(indDisplayedRows, cols, labels, `indicadores_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    });
+  }
+
+  const exitEditMode = async (reload) => {
+    indEditMode = false;
+    indNewRowDraft = null;
+    indDirtySet.clear();
+    toggleBtn.classList.remove("active");
+    addRowBtn.classList.add("hidden");
+    if (saveAllBtn) { saveAllBtn.classList.add("hidden"); saveAllBtn.classList.remove("has-changes"); }
+    if (exportBtn) exportBtn.classList.remove("hidden");
+    if (_savedIndVisibleColumns) { Object.assign(indVisibleColumns, _savedIndVisibleColumns); _savedIndVisibleColumns = null; }
+    indVisibleColumns.acoes = false;
+    applyIndColumnVisibility();
+    syncIndColToggleButtons();
+    if (reload) await loadIndicadoresTable();
+    else renderIndTable();
+  };
+
+  toggleBtn.addEventListener("click", async () => {
+    if (!indEditMode) {
+      indEditMode = true;
+      toggleBtn.classList.add("active");
+      addRowBtn.classList.remove("hidden");
+      if (saveAllBtn) saveAllBtn.classList.remove("hidden");
+      if (exportBtn) exportBtn.classList.add("hidden");
+      indVisibleColumns.acoes = true;
+      applyIndColumnVisibility();
+      renderIndTable();
+      return;
+    }
+    const hasPending = indDirtySet.size > 0 || indNewRowDraft !== null;
+    if (hasPending) {
+      const save = await _modal.confirm("Existem alterações não guardadas. Guardar antes de sair?", "Alterações pendentes", "Guardar", "Descartar");
+      if (save) {
+        try { await saveIndDirtyRows(); await exitEditMode(true); }
+        catch (err) { console.error(err); await _modal.alert("Erro ao guardar os dados. Tenta novamente.", "Erro"); }
+      } else { await exitEditMode(false); }
+    } else { await exitEditMode(false); }
+  });
+
+  if (saveAllBtn) {
+    saveAllBtn.addEventListener("click", async () => {
+      if (!indDirtySet.size && indNewRowDraft === null) return;
+      saveAllBtn.disabled = true;
+      try { await saveIndDirtyRows(); await loadIndicadoresTable(); updateIndSaveAllBtnState(saveAllBtn); }
+      catch (err) { console.error(err); await _modal.alert("Erro ao guardar os dados. Tenta novamente.", "Erro"); }
+      finally { saveAllBtn.disabled = false; }
+    });
+  }
+
+  addRowBtn.addEventListener("click", () => {
+    indNewRowDraft = {};
+    if (!_savedIndVisibleColumns) {
+      _savedIndVisibleColumns = { ...indVisibleColumns };
+      IND_COLUMN_KEYS.forEach(k => { if (k !== "acoes") indVisibleColumns[k] = true; });
+      applyIndColumnVisibility();
+      syncIndColToggleButtons();
+    }
+    renderIndTable();
+    updateIndSaveAllBtnState(saveAllBtn);
+    document.querySelector("[data-inew='ano']")?.focus();
+  });
+
+  tbody.addEventListener("change", e => {
+    const field = e.target.dataset.ifield;
+    if (!field) return;
+    const idx = Number(e.target.dataset.iidx);
+    const row = indDisplayedRows[idx];
+    if (row) { indDirtySet.add(row.id); e.target.closest("tr")?.classList.add("row-dirty"); updateIndSaveAllBtnState(saveAllBtn); }
+  });
+
+  tbody.addEventListener("click", async e => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    try {
+      if (t.dataset.iaction === "delete-row") {
+        await deleteIndRow(Number(t.dataset.iidx));
+        indDirtySet.clear();
+        await loadIndicadoresTable();
+        updateIndSaveAllBtnState(saveAllBtn);
+        return;
+      }
+      if (t.id === "cancelIndNewRowBtn") {
+        indNewRowDraft = null;
+        updateIndSaveAllBtnState(saveAllBtn);
+        renderIndTable();
+      }
+    } catch (err) { console.error(err); await _modal.alert("Ocorreu um erro. Tenta novamente.", "Erro"); }
+  });
+
+  document.querySelectorAll("#indTable th[data-isort]").forEach(h => {
+    h.addEventListener("click", () => {
+      const key = h.dataset.isort;
+      if (!key) return;
+      if (indSortState.key === key) indSortState.direction = indSortState.direction === "asc" ? "desc" : "asc";
+      else indSortState = { key, direction: "asc" };
+      renderIndTable();
+    });
+  });
+
+  document.querySelectorAll("#indPanel .filter-row input[data-ifilter]").forEach(input => {
+    input.addEventListener("input", () => {
+      const key = input.dataset.ifilter;
+      if (key) { indFilterState[key] = input.value; renderIndTable(); }
+    });
+  });
+}
+
+setupIndColumnMenu();
+applyIndColumnVisibility();
+setupIndicadoresEdition();
+loadIndicadoresTable();
+
 // ── NAVBAR ALERT BADGE ────────────────────────────────────────────────────────
 
 function setNavAlertBadge(red, orange) {
