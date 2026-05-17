@@ -798,22 +798,25 @@ function setupUpdateIndicadoresBtn() {
   const btn = document.getElementById("updateIndicadoresBtn");
   if (!btn) return;
 
-  const now     = new Date();
-  const ano     = now.getFullYear();
-  const mesIdx  = now.getMonth();        // 0-based
-  const mesNum  = mesIdx + 1;            // 1-based
-  const mesNome = MES_ORDER[mesIdx].slice(0, 3);
-  btn.textContent = `↑ ${mesNome} ${ano}`;
-  btn.title = `Atualizar Indicadores — ${MES_ORDER[mesIdx]} ${ano}`;
+  const now    = new Date();
+  const ano    = now.getFullYear();
+  const mesIdx = now.getMonth();
+  const mesNum = mesIdx + 1;
+  const mesNome = MES_ORDER[mesIdx];
+  btn.title = `Atualizar Indicadores — ${mesNome} ${ano}`;
 
   btn.addEventListener("click", async () => {
     if (!stayRows.length) return;
 
-    // Scope: selected team or all teams
+    const confirmed = await _modal.confirm(
+      `Confirmas a atualização dos Indicadores de Evolução Temporal para ${mesNome} ${ano}?`,
+      "Atualizar Indicadores"
+    );
+    if (!confirmed) return;
+
     const selectedTeam = filterState.equipa;
     const scope = selectedTeam ? stayRows.filter(r => r.equipa === selectedTeam) : stayRows;
 
-    // Group by equipa
     const groups = {};
     for (const r of scope) {
       if (!r.equipa) continue;
@@ -823,9 +826,6 @@ function setupUpdateIndicadoresBtn() {
     if (!Object.keys(groups).length) return;
 
     btn.disabled = true;
-    const originalText = btn.textContent;
-    btn.textContent = "…";
-
     try {
       for (const [equipa, rows] of Object.entries(groups)) {
         const valid = rows.filter(r => !(r.expirado === true || r.expirado === 'X'));
@@ -841,12 +841,12 @@ function setupUpdateIndicadoresBtn() {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       }
-      btn.textContent = "✓";
-      setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 1500);
+      await _modal.alert(`Indicadores de ${mesNome} ${ano} atualizados com sucesso.`, "Atualização concluída");
     } catch (err) {
       console.error("Erro ao atualizar indicadores:", err);
-      btn.textContent = "✗";
-      setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 2000);
+      await _modal.alert("Erro ao atualizar os indicadores. Tenta novamente.", "Erro");
+    } finally {
+      btn.disabled = false;
     }
   });
 }
