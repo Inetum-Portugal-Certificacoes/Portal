@@ -1565,34 +1565,44 @@ async function loadIndChart(teamFilter = "") {
   const canvas = document.getElementById("indEvolutionChart");
   if (!canvas) return;
 
-  const prevYear = new Date().getFullYear() - 1;
+  const now      = new Date();
+  const startYear = now.getFullYear() - 1;
+  const endYear   = now.getFullYear();
   const team = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
 
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/indicadores?select=ano,mes,certificacoes,consultores${team}&ano=gte.${prevYear}&order=ano.asc,mes.asc&limit=500`,
+      `${SUPABASE_URL}/rest/v1/stay_certified?select=email,equipa,data_certificacao,data_expiracao${team}&limit=5000`,
       { headers: supabaseHeaders() }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const rows = await res.json();
 
-    // Aggregate by ano+mes (sum if multiple teams)
-    const buckets = {};
-    rows.forEach(r => {
-      const key = `${r.ano}-${r.mes}`;
-      if (!buckets[key]) buckets[key] = { ano: r.ano, mes: r.mes, certs: 0, consult: 0 };
-      buckets[key].certs   += r.certificacoes || 0;
-      buckets[key].consult += r.consultores   || 0;
-    });
+    // Build month range Jan(startYear) → Dec(endYear)
+    const labels  = [];
+    const certs   = [];
+    const consult = [];
 
-    const sorted = Object.values(buckets).sort((a, b) => {
-      if (a.ano !== b.ano) return a.ano - b.ano;
-      return MES_ORDER.indexOf(a.mes) - MES_ORDER.indexOf(b.mes);
-    });
+    for (let year = startYear; year <= endYear; year++) {
+      for (let mIdx = 0; mIdx < 12; mIdx++) {
+        const monthStart = `${year}-${String(mIdx + 1).padStart(2, "0")}-01`;
+        const lastDay    = new Date(year, mIdx + 1, 0).getDate();
+        const monthEnd   = `${year}-${String(mIdx + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
-    const labels  = sorted.map(r => `${r.mes.slice(0, 3)} ${r.ano}`);
-    const certs   = sorted.map(r => r.certs);
-    const consult = sorted.map(r => r.consult);
+        // Valid during month: cert date ≤ monthEnd AND expiry date ≥ monthStart
+        const valid = rows.filter(r => {
+          const cd = r.data_certificacao;
+          const ed = r.data_expiracao;
+          return cd && ed && cd <= monthEnd && ed >= monthStart;
+        });
+
+        const uniqueEmails = new Set(valid.map(r => (r.email || "").toLowerCase().trim()).filter(Boolean));
+
+        labels.push(`${MES_ORDER[mIdx].slice(0, 3)} ${year}`);
+        certs.push(valid.length);
+        consult.push(uniqueEmails.size);
+      }
+    }
 
     if (_indEvolutionChart) { _indEvolutionChart.destroy(); _indEvolutionChart = null; }
 
