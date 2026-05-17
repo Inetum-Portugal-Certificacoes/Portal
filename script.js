@@ -1701,15 +1701,13 @@ async function loadIndChart(teamFilter = "") {
     const fillEmpty = teamFilter ? 0 : null;
     const spanGaps  = !teamFilter;
 
-    // Build month range Jan(dynStart) → current month (never show future months)
-    const curMonth = now.getMonth() + 1;
+    // Build full range: Jan(startYear) → Dec(endYear) — all 24 months always visible
     const labels  = [];
     const certs   = [];
     const consult = [];
 
-    for (let year = dynStart; year <= dynEnd; year++) {
-      const lastMonth = (year === now.getFullYear()) ? curMonth : 12;
-      for (let mIdx = 0; mIdx < lastMonth; mIdx++) {
+    for (let year = startYear; year <= endYear; year++) {
+      for (let mIdx = 0; mIdx < 12; mIdx++) {
         const entry = lookup.get(`${year}-${mIdx + 1}`);
         labels.push(`${MES_ORDER[mIdx].slice(0, 3)} ${year}`);
         certs.push(entry  ? entry.certificacoes : fillEmpty);
