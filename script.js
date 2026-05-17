@@ -1622,6 +1622,7 @@ async function loadIndTeams() {
       loadIndOverview(indTeamFilter);
       loadIndChart(indTeamFilter);
       loadIndNewCertsChart(indTeamFilter);
+      loadIndProjection(indTeamFilter);
     });
   } catch (err) {
     console.error("Erro ao carregar equipas de indicadores:", err);
@@ -1937,6 +1938,96 @@ function showIndNewCertsDrill(ym, year, mIdx) {
 
   panel.style.display = "block";
   panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+// ── INDICADORES — PROJEÇÃO DE PLANEAMENTO ────────────────────────────────────
+
+const PROJ_STORAGE_KEY = team => `ind_proj_${team}`;
+
+function projLoad(team) {
+  try { return JSON.parse(localStorage.getItem(PROJ_STORAGE_KEY(team)) || "{}"); }
+  catch { return {}; }
+}
+
+function projSave(team, data) {
+  localStorage.setItem(PROJ_STORAGE_KEY(team), JSON.stringify(data));
+}
+
+function loadIndProjection(team) {
+  const section    = document.getElementById("projeccaoSection");
+  const subtitle   = document.getElementById("projeccaoSubtitle");
+  if (!section) return;
+
+  if (!team) { section.style.display = "none"; return; }
+
+  section.style.display = "";
+  if (subtitle) subtitle.textContent = `Objetivos e planeamento — ${team}`;
+
+  const saved = projLoad(team);
+
+  const elConsultores       = document.getElementById("projConsultores");
+  const elObjInetum         = document.getElementById("projObjInetum");
+  const elObjInetumActive   = document.getElementById("projObjInetumActive");
+  const elObjInetumTile     = document.getElementById("projObjInetumTile");
+  const elObjEquipa         = document.getElementById("projObjEquipa");
+  const elObjEquipaActive   = document.getElementById("projObjEquipaActive");
+  const elObjEquipaTile     = document.getElementById("projObjEquipaTile");
+
+  if (!elConsultores) return;
+
+  // Populate saved values
+  elConsultores.value           = saved.consultores     ?? "";
+  elObjInetum.value             = saved.obj_inetum      ?? "";
+  elObjInetumActive.checked     = saved.obj_inetum_active  !== false;
+  elObjEquipa.value             = saved.obj_equipa      ?? "";
+  elObjEquipaActive.checked     = saved.obj_equipa_active  !== false;
+
+  // Apply inactive styling
+  const applyToggle = (tile, checkbox) => {
+    tile.classList.toggle("proj-inactive", !checkbox.checked);
+  };
+  applyToggle(elObjInetumTile, elObjInetumActive);
+  applyToggle(elObjEquipaTile, elObjEquipaActive);
+
+  // Remove previous listeners by cloning nodes
+  const inputs = [elConsultores, elObjInetum, elObjEquipa];
+  const toggles = [elObjInetumActive, elObjEquipaActive];
+  [...inputs, ...toggles].forEach(el => {
+    const fresh = el.cloneNode(true);
+    el.parentNode.replaceChild(fresh, el);
+  });
+
+  // Re-query after clone
+  const inpConsultores     = document.getElementById("projConsultores");
+  const inpObjInetum       = document.getElementById("projObjInetum");
+  const togObjInetum       = document.getElementById("projObjInetumActive");
+  const tileObjInetum      = document.getElementById("projObjInetumTile");
+  const inpObjEquipa       = document.getElementById("projObjEquipa");
+  const togObjEquipa       = document.getElementById("projObjEquipaActive");
+  const tileObjEquipa      = document.getElementById("projObjEquipaTile");
+
+  const persist = () => {
+    projSave(team, {
+      consultores:        inpConsultores.value !== "" ? Number(inpConsultores.value) : null,
+      obj_inetum:         inpObjInetum.value   !== "" ? Number(inpObjInetum.value)   : null,
+      obj_inetum_active:  togObjInetum.checked,
+      obj_equipa:         inpObjEquipa.value   !== "" ? Number(inpObjEquipa.value)   : null,
+      obj_equipa_active:  togObjEquipa.checked,
+    });
+  };
+
+  inpConsultores.addEventListener("change", persist);
+  inpObjInetum.addEventListener("change", persist);
+  inpObjEquipa.addEventListener("change", persist);
+
+  togObjInetum.addEventListener("change", () => {
+    tileObjInetum.classList.toggle("proj-inactive", !togObjInetum.checked);
+    persist();
+  });
+  togObjEquipa.addEventListener("change", () => {
+    tileObjEquipa.classList.toggle("proj-inactive", !togObjEquipa.checked);
+    persist();
+  });
 }
 
 loadIndTeams();

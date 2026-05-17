@@ -74,6 +74,51 @@
           </div>
         </section>
 
+        <section class="content-section reveal" id="projeccaoSection" style="display:none;">
+          <div class="section-title">
+            <h2>Projeção de Planeamento</h2>
+            <p id="projeccaoSubtitle">Configuração de objetivos e planeamento da equipa</p>
+          </div>
+          <div class="kpi-grid proj-grid">
+
+            <article class="kpi kpi-sm proj-tile">
+              <p>Nº de Consultores</p>
+              <div class="proj-input-wrap">
+                <input id="projConsultores" type="number" min="0" class="proj-input" placeholder="—" />
+              </div>
+            </article>
+
+            <article class="kpi kpi-sm proj-tile" id="projObjInetumTile">
+              <div class="proj-tile-head">
+                <p>Objetivo Inetum</p>
+                <label class="proj-toggle" title="Ativar/desativar">
+                  <input type="checkbox" id="projObjInetumActive" />
+                  <span class="proj-toggle-track"><span class="proj-toggle-thumb"></span></span>
+                </label>
+              </div>
+              <div class="proj-input-wrap">
+                <input id="projObjInetum" type="number" min="0" max="100" step="0.1" class="proj-input" placeholder="—" />
+                <span class="proj-unit">%</span>
+              </div>
+            </article>
+
+            <article class="kpi kpi-sm proj-tile" id="projObjEquipaTile">
+              <div class="proj-tile-head">
+                <p>Objetivo de Equipa</p>
+                <label class="proj-toggle" title="Ativar/desativar">
+                  <input type="checkbox" id="projObjEquipaActive" />
+                  <span class="proj-toggle-track"><span class="proj-toggle-thumb"></span></span>
+                </label>
+              </div>
+              <div class="proj-input-wrap">
+                <input id="projObjEquipa" type="number" min="0" max="100" step="0.1" class="proj-input" placeholder="—" />
+                <span class="proj-unit">%</span>
+              </div>
+            </article>
+
+          </div>
+        </section>
+
         <section class="content-section reveal">
           <div class="section-title">
             <h2>Evolução Temporal</h2>

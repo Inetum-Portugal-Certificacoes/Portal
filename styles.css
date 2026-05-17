@@ -437,6 +437,42 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .kpi-caution strong { background: linear-gradient(135deg,#f9a825,#fff176); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
 .kpi-green   strong { background: linear-gradient(135deg,#00c853,#b9f6ca); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
 .drill-section-header td { background: rgba(255,255,255,.04); color: var(--text-muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; padding: 6px 12px !important; }
+
+/* ── PROJECTION TILES ────────────────────────────────────── */
+.proj-grid { grid-template-columns: repeat(3, 1fr); }
+.proj-tile { display: flex; flex-direction: column; gap: 10px; }
+.proj-tile-head { display: flex; align-items: center; justify-content: space-between; }
+.proj-tile-head p { margin: 0; }
+.proj-input-wrap { display: flex; align-items: center; gap: 6px; }
+.proj-input {
+  width: 100%; background: rgba(255,255,255,.06); border: 1px solid var(--glass-border);
+  border-radius: 8px; color: var(--text-primary); font-size: 1.4rem; font-weight: 700;
+  font-family: inherit; padding: 4px 10px; outline: none; transition: border-color .2s;
+  -moz-appearance: textfield;
+}
+.proj-input::-webkit-outer-spin-button,
+.proj-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.proj-input:focus { border-color: var(--accent); }
+.proj-input:disabled { opacity: .35; cursor: not-allowed; }
+.proj-unit { color: var(--text-muted); font-size: 1rem; font-weight: 600; white-space: nowrap; }
+
+/* toggle switch */
+.proj-toggle { position: relative; display: inline-flex; cursor: pointer; }
+.proj-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.proj-toggle-track {
+  width: 34px; height: 18px; background: rgba(255,255,255,.12); border-radius: 9px;
+  transition: background .2s; display: flex; align-items: center; padding: 2px;
+}
+.proj-toggle input:checked ~ .proj-toggle-track { background: var(--accent); }
+.proj-toggle-thumb {
+  width: 14px; height: 14px; background: #fff; border-radius: 50%;
+  transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.4);
+}
+.proj-toggle input:checked ~ .proj-toggle-track .proj-toggle-thumb { transform: translateX(16px); }
+
+/* dimmed state when toggle is off */
+.proj-tile.proj-inactive .proj-input-wrap { opacity: .35; pointer-events: none; }
+
 .chart-placeholder {
   margin-top: 14px; min-height: 200px;
   border: 1px dashed var(--glass-border); border-radius: 12px;
