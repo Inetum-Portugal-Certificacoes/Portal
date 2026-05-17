@@ -2165,7 +2165,6 @@ async function loadHomeTotals() {
 
     setText("homeTotalCerts",    totalCerts);
     setText("homeTotalPlan",     totalPlan);
-    setText("homeTotalKpi",      totalCerts);
     setText("homeAlertRed",      alertRed);
     setText("homeAlertOrange",   alertOrange);
 
