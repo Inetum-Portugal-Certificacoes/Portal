@@ -1662,38 +1662,36 @@ async function loadIndChart(teamFilter = "") {
 
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/stay_certified?select=email,data_certificacao,data_expiracao${teamQ}&limit=10000`,
+      `${SUPABASE_URL}/rest/v1/indicadores?select=ano,mes,certificacoes,consultores${teamQ}&order=ano,mes`,
       { headers: supabaseHeaders() }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const rows = await res.json();
 
-    // Compute valid certs and unique consultores for each month
-    // A cert is "valid in month M" when:
-    //   data_certificacao.slice(0,7) <= M   (obtained by that month)
-    //   data_expiracao.slice(0,7)    >= M   (not yet expired before that month)
+    // Build lookup grouped by ano+mes (sum across teams when no filter)
+    const lookup = new Map();
+    for (const r of rows) {
+      const key = `${r.ano}-${r.mes}`;
+      if (lookup.has(key)) {
+        const e = lookup.get(key);
+        e.certificacoes += (r.certificacoes || 0);
+        e.consultores   += (r.consultores   || 0);
+      } else {
+        lookup.set(key, { certificacoes: r.certificacoes || 0, consultores: r.consultores || 0 });
+      }
+    }
+
+    // Build month range Jan(startYear) → Dec(endYear), null for months with no data
     const labels  = [];
     const certs   = [];
     const consult = [];
 
     for (let year = startYear; year <= endYear; year++) {
       for (let mIdx = 0; mIdx < 12; mIdx++) {
-        const M = `${year}-${String(mIdx + 1).padStart(2, "0")}`;
+        const entry = lookup.get(`${year}-${mIdx + 1}`);
         labels.push(`${MES_ORDER[mIdx].slice(0, 3)} ${year}`);
-
-        const valid = rows.filter(r =>
-          r.data_certificacao && r.data_expiracao &&
-          r.data_certificacao.slice(0, 7) <= M &&
-          r.data_expiracao.slice(0, 7)    >= M
-        );
-
-        if (valid.length) {
-          certs.push(valid.length);
-          consult.push(new Set(valid.map(r => (r.email || "").toLowerCase().trim())).size);
-        } else {
-          certs.push(null);
-          consult.push(null);
-        }
+        certs.push(entry  ? entry.certificacoes : null);
+        consult.push(entry ? entry.consultores   : null);
       }
     }
 
