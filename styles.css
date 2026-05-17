@@ -459,8 +459,9 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .proj-input-pct { font-size: 1.1rem; width: 72px; }
 .proj-unit { color: var(--text-muted); font-size: 1rem; font-weight: 600; white-space: nowrap; }
 
-/* Com Planeamento — left stack */
+/* Planeamento tile — left side */
 .proj-plan-left { display: flex; flex-direction: column; gap: 8px; justify-content: center; flex: 1; min-width: 0; }
+.proj-plan-left.proj-plan-row { flex-direction: row; gap: 14px; align-items: flex-end; }
 .proj-plan-item { display: flex; flex-direction: column; gap: 1px; }
 .proj-plan-val  { font-size: 1.25rem; font-weight: 700; color: var(--text-primary); line-height: 1.1; }
 
