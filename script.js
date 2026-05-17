@@ -73,6 +73,7 @@ async function loadStayCertifiedTable() {
     const res = await fetch(url, { headers: supabaseHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     stayRows = await res.json();
+    buildStayDataLists(stayRows);
     renderTeamTiles(stayRows);
     renderStayTable();
   } catch (err) {
@@ -112,6 +113,18 @@ function getViewRows() {
     return 0;
   });
   return rows;
+}
+
+function buildStayDataLists(rows) {
+  Object.keys(filterState).forEach(field => {
+    const listId = `dl-stay-${field}`;
+    let dl = document.getElementById(listId);
+    if (!dl) { dl = document.createElement("datalist"); dl.id = listId; document.body.appendChild(dl); }
+    const unique = [...new Set(rows.map(r => String(r[field] ?? "")).filter(Boolean))].sort();
+    dl.innerHTML = unique.map(v => `<option value="${escapeHtml(v)}"></option>`).join("");
+    const input = document.querySelector(`.filter-row [data-filter="${field}"]`);
+    if (input) input.setAttribute("list", listId);
+  });
 }
 
 function renderStayTable() {
@@ -682,6 +695,18 @@ function getPlanViewRows() {
   return rows;
 }
 
+function buildPlanDataLists(rows) {
+  Object.keys(planFilterState).forEach(field => {
+    const listId = `dl-plan-${field}`;
+    let dl = document.getElementById(listId);
+    if (!dl) { dl = document.createElement("datalist"); dl.id = listId; document.body.appendChild(dl); }
+    const unique = [...new Set(rows.map(r => String(r[field] ?? "")).filter(Boolean))].sort();
+    dl.innerHTML = unique.map(v => `<option value="${escapeHtml(v)}"></option>`).join("");
+    const input = document.querySelector(`#planPanel .filter-row [data-pfilter="${field}"]`);
+    if (input) input.setAttribute("list", listId);
+  });
+}
+
 function renderPlanTable() {
   const tbody = document.getElementById("planTableBody");
   if (!tbody) return;
@@ -867,6 +892,7 @@ async function loadPlaneamentoTable() {
     const res = await fetch(url, { headers: supabaseHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     planRows = await res.json();
+    buildPlanDataLists(planRows);
     renderPlanTeamTiles(planRows);
     renderPlanTable();
   } catch (err) {
