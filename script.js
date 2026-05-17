@@ -1546,6 +1546,8 @@ loadPlaneamentoTable();
 let indTeamFilter = "";
 let _indEvolutionChart = null;
 let _indNewCertsChart  = null;
+let _indNewCertsRows   = [];   // cached for drilldown
+let _indNewCertsStartYear = new Date().getFullYear() - 1;
 
 async function loadIndOverview(teamFilter = "") {
   const elCerts    = document.getElementById("indTotalCerts");
@@ -1751,11 +1753,13 @@ async function loadIndNewCertsChart(teamFilter = "") {
 
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/stay_certified?select=data_certificacao,data_expiracao,expirado${team}&limit=5000`,
+      `${SUPABASE_URL}/rest/v1/stay_certified?select=equipa,email,codigo_certificacao,nome_certificacao,data_certificacao,data_expiracao,expirado${team}&limit=5000`,
       { headers: supabaseHeaders() }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const rows = await res.json();
+    _indNewCertsRows = rows;
+    _indNewCertsStartYear = startYear;
 
     // Novas certificações: count by data_certificacao month
     const newMap = new Map();
@@ -1834,6 +1838,15 @@ async function loadIndNewCertsChart(teamFilter = "") {
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: "index", intersect: false },
+        onClick: (evt, elements) => {
+          if (!elements.length) return;
+          const { datasetIndex, index } = elements[0];
+          const yr  = startYear + Math.floor(index / 12);
+          const mI  = index % 12;
+          const MM  = String(mI + 1).padStart(2, "0");
+          const ym  = `${yr}-${MM}`;
+          showIndNewCertsDrill(ym, datasetIndex === 0 ? "nova" : "renov", yr, mI);
+        },
         plugins: {
           legend: {
             labels: { color: "#c8d8e8", font: { family: "Inter", size: 12 }, boxWidth: 16, padding: 20 }
@@ -1862,9 +1875,71 @@ async function loadIndNewCertsChart(teamFilter = "") {
         }
       }
     });
+
+    // Close button
+    const closeBtn = document.getElementById("indDrillClose");
+    if (closeBtn) {
+      closeBtn.onclick = () => {
+        const panel = document.getElementById("indNewCertsDrill");
+        if (panel) panel.style.display = "none";
+      };
+    }
   } catch (err) {
     console.error("Erro ao carregar gráfico de novas certificações:", err);
   }
+}
+
+function showIndNewCertsDrill(ym, type, year, mIdx) {
+  const panel   = document.getElementById("indNewCertsDrill");
+  const titleEl = document.getElementById("indDrillTitle");
+  const linkEl  = document.getElementById("indDrillLink");
+  const tbody   = document.getElementById("indDrillBody");
+  if (!panel || !tbody) return;
+
+  const mesNome = MES_ORDER[mIdx];
+  const yr1 = year + 1;
+  const MM  = String(mIdx + 1).padStart(2, "0");
+
+  let drillRows;
+  if (type === "nova") {
+    drillRows = _indNewCertsRows.filter(r => r.data_certificacao && r.data_certificacao.slice(0, 7) === ym);
+    titleEl.textContent = `Novas Certificações — ${mesNome} ${year} (${drillRows.length})`;
+  } else {
+    const targetExp = `${yr1}-${MM}`;
+    drillRows = _indNewCertsRows.filter(r =>
+      r.data_expiracao && r.data_certificacao &&
+      r.data_expiracao.slice(0, 7) === targetExp &&
+      parseInt(r.data_certificacao.slice(0, 4)) !== year &&
+      !(r.expirado === true || r.expirado === 'X')
+    );
+    titleEl.textContent = `Renovações — ${mesNome} ${year} (${drillRows.length})`;
+  }
+
+  // "Ver em Certificações" link — filter by equipa if team selected
+  const teamParam = indTeamFilter ? `&filter_equipa=${encodeURIComponent(indTeamFilter)}` : "";
+  linkEl.href = `/Portal/certificacoes?filter_equipa=${encodeURIComponent(indTeamFilter || "")}`.replace("filter_equipa=&", "").replace("?filter_equipa=", teamParam ? `?${teamParam.slice(1)}` : "");
+  // simpler: just build clean URL
+  linkEl.href = indTeamFilter
+    ? `/Portal/certificacoes?filter_equipa=${encodeURIComponent(indTeamFilter)}`
+    : `/Portal/certificacoes`;
+
+  tbody.innerHTML = drillRows.length
+    ? drillRows.map(r => {
+        const certUrl = `/Portal/certificacoes?filter_email=${encodeURIComponent(r.email || "")}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao || "")}`;
+        return `<tr>
+          <td>${escapeHtml(r.equipa || "")}</td>
+          <td>${escapeHtml(r.email || "")}</td>
+          <td>${escapeHtml(r.codigo_certificacao || "")}</td>
+          <td>${escapeHtml(r.nome_certificacao || "")}</td>
+          <td>${escapeHtml(r.data_certificacao || "")}</td>
+          <td>${escapeHtml(r.data_expiracao || "")}</td>
+          <td><a href="${certUrl}" class="mini-btn" title="Ver em Certificações" style="text-decoration:none;">↗</a></td>
+        </tr>`;
+      }).join("")
+    : `<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Sem registos</td></tr>`;
+
+  panel.style.display = "block";
+  panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 loadIndTeams();

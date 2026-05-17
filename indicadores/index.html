@@ -89,11 +89,38 @@
         <section class="content-section reveal">
           <div class="section-title">
             <h2>Novas Certificações & Renovações</h2>
-            <p>Certificações novas e renovações realizadas ao longo do tempo</p>
+            <p>Certificações novas e renovações realizadas ao longo do tempo — clica numa barra para ver o detalhe</p>
           </div>
           <div class="glass-panel">
             <div class="chart-wrap" style="position:relative; min-height:320px;">
               <canvas id="indNewCertsChart"></canvas>
+            </div>
+          </div>
+          <div id="indNewCertsDrill" class="glass-panel" style="display:none; margin-top:16px;">
+            <div class="panel-head">
+              <h3 id="indDrillTitle">—</h3>
+              <div class="actions">
+                <a id="indDrillLink" href="/Portal/certificacoes" class="icon-btn" title="Ver em Certificações" style="text-decoration:none;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>
+                <button id="indDrillClose" class="icon-btn" type="button" title="Fechar">✕</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Equipa</th>
+                    <th>Email</th>
+                    <th>Código</th>
+                    <th>Certificação</th>
+                    <th>Data Certif.</th>
+                    <th>Válida até</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="indDrillBody"></tbody>
+              </table>
             </div>
           </div>
         </section>
