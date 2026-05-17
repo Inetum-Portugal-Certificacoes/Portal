@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-PT">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KPI | Inetum Portugal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="scroll-progress" id="scrollProgress"></div>
+    <nav class="navbar" id="navbar">
+      <div class="container">
+        <a href="/Inetum-Certificacoes/"><img class="navbar-logo" src="/Inetum-Certificacoes/assets/inetum-logo.svg" alt="Inetum" /></a>
+        <div class="navbar-links" id="navLinks">
+          <a href="/Inetum-Certificacoes/">Home</a>
+          <a href="/Inetum-Certificacoes/stay-certified">Certificações</a>
+          <a href="/Inetum-Certificacoes/novas-certificacoes">Planeamento</a>
+          <a class="active" href="/Inetum-Certificacoes/kpis">KPI</a>
+          <a href="/Inetum-Certificacoes/alertas">Alertas</a>
+        </div>
+        <button class="hamburger" id="hamburger" aria-label="Abrir menu">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </nav>
+
+    <section class="page-hero">
+      <div class="hero-bg"></div>
+      <div class="particles" id="particles"></div>
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <span class="badge-label">Inetum Portugal</span>
+        <h1>KPI</h1>
+        <p class="hero-sub">Indicadores de desempenho e métricas de certificação</p>
+      </div>
+    </section>
+
+    <main class="main-content">
+      <div class="container-wide">
+
+        <section class="content-section reveal">
+          <div class="section-title">
+            <h2>Indicadores</h2>
+          </div>
+          <div class="kpi-grid">
+            <article class="kpi">
+              <p>Total Certificações</p>
+              <strong id="kpiTotal">0</strong>
+            </article>
+            <article class="kpi">
+              <p>Expiram em 90 dias</p>
+              <strong id="kpiExp90">0</strong>
+            </article>
+            <article class="kpi">
+              <p>Externas</p>
+              <strong id="kpiExternas">0</strong>
+            </article>
+            <article class="kpi">
+              <p>Taxa Stay Certified</p>
+              <strong id="kpiTaxa">0%</strong>
+            </article>
+          </div>
+          <div class="chart-placeholder">Área reservada para gráficos futuros</div>
+        </section>
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <img class="footer-logo" src="/Inetum-Certificacoes/assets/inetum-logo.svg" alt="Inetum" />
+        </div>
+        <p class="footer-copy">© 2026 Inetum Portugal. All rights reserved.</p>
+      </div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>

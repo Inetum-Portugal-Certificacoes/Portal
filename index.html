@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="pt-PT">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Inetum Portugal | Certificações</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="scroll-progress" id="scrollProgress"></div>
+    <nav class="navbar" id="navbar">
+      <div class="container">
+        <a href="/Inetum-Certificacoes/"><img class="navbar-logo" src="/Inetum-Certificacoes/assets/inetum-logo.svg" alt="Inetum" /></a>
+        <div class="navbar-links" id="navLinks">
+          <a class="active" href="/Inetum-Certificacoes/">Home</a>
+          <a href="/Inetum-Certificacoes/stay-certified">Certificações</a>
+          <a href="/Inetum-Certificacoes/novas-certificacoes">Planeamento</a>
+          <a href="/Inetum-Certificacoes/kpis">KPI</a>
+          <a href="/Inetum-Certificacoes/alertas">Alertas</a>
+        </div>
+        <button class="hamburger" id="hamburger" aria-label="Abrir menu">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </nav>
+
+    <section class="page-hero hero-tall">
+      <div class="hero-bg"></div>
+      <div class="particles" id="particles"></div>
+      <div class="hero-overlay"></div>
+      <div class="brand-strapline" aria-hidden="true">
+        <span>LET'S</span>
+        <span>MAKE</span>
+        <span>TECH</span>
+        <span>RIGHT</span>
+      </div>
+      <div class="hero-content">
+        <span class="badge-label">Driving Digital Impact</span>
+        <h1>Gestão de Certificações<br/>Inetum Portugal</h1>
+        <p class="hero-sub">Portal interno para acompanhamento e gestão ninja das Certificações SAP</p>
+        <a class="hero-cta" href="/Inetum-Certificacoes/stay-certified">Ver Certificações →</a>
+      </div>
+    </section>
+
+    <main class="main-content">
+      <div class="container-wide">
+
+        <section class="content-section reveal">
+          <div class="section-title">
+            <h2>Áreas do Portal</h2>
+            <p>Acede rapidamente a cada secção do portal de certificações</p>
+          </div>
+          <div class="home-quicklinks">
+            <a class="tile tile-alerts" href="/Inetum-Certificacoes/alertas">
+              <span>Alertas</span>
+              <div class="tile-alert-counts">
+                <span class="tile-alert-red"><strong id="homeAlertRed">—</strong> crítico</span>
+                <span class="tile-alert-orange"><strong id="homeAlertOrange">—</strong> urgente</span>
+              </div>
+            </a>
+            <a class="tile" href="/Inetum-Certificacoes/stay-certified">
+              <span>Certificações</span>
+              <strong id="homeTotalCerts">—</strong>
+            </a>
+            <a class="tile" href="/Inetum-Certificacoes/novas-certificacoes">
+              <span>Planeamento</span>
+              <strong id="homeTotalPlan">—</strong>
+            </a>
+            <a class="tile" href="/Inetum-Certificacoes/kpis">
+              <span>KPI</span>
+              <strong id="homeTotalKpi">—</strong>
+            </a>
+          </div>
+        </section>
+
+        <section class="content-section reveal">
+          <div class="glass-panel">
+            <div class="panel-head">
+              <h2>Contexto</h2>
+            </div>
+            <p style="color:var(--text-muted); font-size:.92rem; line-height:1.8;">
+              Este portal centraliza a operação de certificações com foco em controlo, renovação e visibilidade contínua para a liderança e equipas.
+            </p>
+          </div>
+        </section>
+
+        <section class="content-section reveal">
+          <div class="section-title">
+            <h2>Lord of the Certs</h2>
+            <p>Top 5 colaboradores com maior número de certificações</p>
+          </div>
+          <div class="glass-panel">
+            <ol id="homeRanking" class="ranking-list">
+              <li class="ranking-loading">A carregar...</li>
+            </ol>
+          </div>
+        </section>
+
+        <section class="content-section reveal">
+          <div class="section-title">
+            <h2>Distribuição de Certificações</h2>
+            <p>Número de certificações válidas por nome, por ordem decrescente</p>
+          </div>
+          <div class="glass-panel">
+            <div class="chart-wrap">
+              <canvas id="homeCertChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <section class="content-section reveal">
+          <div class="section-title">
+            <h2>Distribuição por Site</h2>
+            <p>Número de certificações válidas por localização</p>
+          </div>
+          <div class="glass-panel">
+            <div class="chart-wrap">
+              <canvas id="homeSiteChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <img class="footer-logo" src="/Inetum-Certificacoes/assets/inetum-logo.svg" alt="Inetum" />
+        </div>
+        <p class="footer-copy">© 2026 Inetum Portugal. All rights reserved.</p>
+      </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>

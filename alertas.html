@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="pt-PT">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Alertas | Inetum Portugal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="scroll-progress" id="scrollProgress"></div>
+    <nav class="navbar" id="navbar">
+      <div class="container">
+        <a href="/Inetum-Certificacoes/"><img class="navbar-logo" src="/Inetum-Certificacoes/assets/inetum-logo.svg" alt="Inetum" /></a>
+        <div class="navbar-links" id="navLinks">
+          <a href="/Inetum-Certificacoes/">Home</a>
+          <a href="/Inetum-Certificacoes/stay-certified">Certificações</a>
+          <a href="/Inetum-Certificacoes/novas-certificacoes">Planeamento</a>
+          <a href="/Inetum-Certificacoes/kpis">KPI</a>
+          <a class="active" href="/Inetum-Certificacoes/alertas">Alertas</a>
+        </div>
+        <button class="hamburger" id="hamburger" aria-label="Abrir menu">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </nav>
+
+    <section class="page-hero">
+      <div class="hero-bg"></div>
+      <div class="particles" id="particles"></div>
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <span class="badge-label">Inetum Portugal</span>
+        <h1>Alertas</h1>
+        <p class="hero-sub">Certificações a expirar — mantém-te a par das renovações necessárias</p>
+      </div>
+    </section>
+
+    <main class="main-content">
+      <div class="container-wide">
+
+        <section class="content-section team-section-centered reveal">
+          <div class="section-title">
+            <h2>Equipas</h2>
+            <p>Seleciona uma equipa para filtrar os alertas</p>
+          </div>
+          <div id="alertTeamTiles" class="team-tiles-grid"></div>
+        </section>
+
+        <section class="content-section reveal">
+          <div class="section-title">
+            <h2>Certificações a Expirar</h2>
+            <p>Estado das certificações por urgência de renovação</p>
+          </div>
+          <div class="kpi-grid kpi-grid-3">
+            <article class="kpi kpi-danger">
+              <p>Dentro de 15 dias</p>
+              <strong id="alertCount15">0</strong>
+            </article>
+            <article class="kpi kpi-warning">
+              <p>Dentro de 30 dias</p>
+              <strong id="alertCount30">0</strong>
+            </article>
+            <article class="kpi kpi-green">
+              <p>Dentro de 60 dias</p>
+              <strong id="alertCount60">0</strong>
+            </article>
+          </div>
+          <div id="alertCardList" class="alert-card-list"></div>
+        </section>
+
+        <section class="content-section reveal">
+          <div class="section-title">
+            <h2>Certificações Planeadas</h2>
+            <p>Estado do planeamento de certificações por mês</p>
+          </div>
+          <div class="kpi-grid kpi-grid-3">
+            <article class="kpi kpi-danger">
+              <p>Overdue</p>
+              <strong id="planCountOverdue">0</strong>
+            </article>
+            <article class="kpi kpi-warning">
+              <p id="planCurrentMonthLabel">—</p>
+              <strong id="planCountCurrent">0</strong>
+            </article>
+            <article class="kpi kpi-green">
+              <p id="planNextMonthLabel">—</p>
+              <strong id="planCountNext">0</strong>
+            </article>
+          </div>
+          <div id="planCardList" class="alert-card-list"></div>
+        </section>
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <img class="footer-logo" src="/Inetum-Certificacoes/assets/inetum-logo.svg" alt="Inetum" />
+        </div>
+        <p class="footer-copy">© 2026 Inetum Portugal. All rights reserved.</p>
+      </div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
