@@ -1565,18 +1565,31 @@ async function loadIndChart(teamFilter = "") {
   const canvas = document.getElementById("indEvolutionChart");
   if (!canvas) return;
 
-  const now      = new Date();
+  const now       = new Date();
   const startYear = now.getFullYear() - 1;
   const endYear   = now.getFullYear();
-  const team = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
+  const team      = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
 
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/stay_certified?select=email,equipa,data_certificacao,data_expiracao${team}&limit=5000`,
+      `${SUPABASE_URL}/rest/v1/indicadores?select=ano,mes,certificacoes,consultores${team}&order=ano,mes`,
       { headers: supabaseHeaders() }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const rows = await res.json();
+
+    // Build lookup grouped by ano+mes (sum across teams when no filter)
+    const lookup = new Map();
+    for (const r of rows) {
+      const key = `${r.ano}-${r.mes}`;
+      if (lookup.has(key)) {
+        const e = lookup.get(key);
+        e.certificacoes += (r.certificacoes || 0);
+        e.consultores   += (r.consultores   || 0);
+      } else {
+        lookup.set(key, { certificacoes: r.certificacoes || 0, consultores: r.consultores || 0 });
+      }
+    }
 
     // Build month range Jan(startYear) → Dec(endYear)
     const labels  = [];
@@ -1585,22 +1598,10 @@ async function loadIndChart(teamFilter = "") {
 
     for (let year = startYear; year <= endYear; year++) {
       for (let mIdx = 0; mIdx < 12; mIdx++) {
-        const monthStart = `${year}-${String(mIdx + 1).padStart(2, "0")}-01`;
-        const lastDay    = new Date(year, mIdx + 1, 0).getDate();
-        const monthEnd   = `${year}-${String(mIdx + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-
-        // Valid during month: cert date ≤ monthEnd AND expiry date ≥ monthStart
-        const valid = rows.filter(r => {
-          const cd = r.data_certificacao;
-          const ed = r.data_expiracao;
-          return cd && ed && cd <= monthEnd && ed >= monthStart;
-        });
-
-        const uniqueEmails = new Set(valid.map(r => (r.email || "").toLowerCase().trim()).filter(Boolean));
-
+        const entry = lookup.get(`${year}-${mIdx + 1}`);
         labels.push(`${MES_ORDER[mIdx].slice(0, 3)} ${year}`);
-        certs.push(valid.length);
-        consult.push(uniqueEmails.size);
+        certs.push(entry  ? entry.certificacoes : null);
+        consult.push(entry ? entry.consultores   : null);
       }
     }
 
@@ -1620,7 +1621,8 @@ async function loadIndChart(teamFilter = "") {
             pointRadius: 4,
             pointHoverRadius: 6,
             tension: 0.35,
-            fill: true
+            fill: true,
+            spanGaps: false
           },
           {
             label: "Consultores",
@@ -1631,7 +1633,8 @@ async function loadIndChart(teamFilter = "") {
             pointRadius: 4,
             pointHoverRadius: 6,
             tension: 0.35,
-            fill: true
+            fill: true,
+            spanGaps: false
           }
         ]
       },
