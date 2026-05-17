@@ -1845,7 +1845,7 @@ async function loadIndNewCertsChart(teamFilter = "") {
           const mI  = index % 12;
           const MM  = String(mI + 1).padStart(2, "0");
           const ym  = `${yr}-${MM}`;
-          showIndNewCertsDrill(ym, datasetIndex === 0 ? "nova" : "renov", yr, mI);
+          showIndNewCertsDrill(ym, yr, mI);
         },
         plugins: {
           legend: {
@@ -1889,54 +1889,56 @@ async function loadIndNewCertsChart(teamFilter = "") {
   }
 }
 
-function showIndNewCertsDrill(ym, type, year, mIdx) {
+function showIndNewCertsDrill(ym, year, mIdx) {
   const panel   = document.getElementById("indNewCertsDrill");
   const titleEl = document.getElementById("indDrillTitle");
   const linkEl  = document.getElementById("indDrillLink");
   const tbody   = document.getElementById("indDrillBody");
   if (!panel || !tbody) return;
 
-  const mesNome = MES_ORDER[mIdx];
-  const yr1 = year + 1;
-  const MM  = String(mIdx + 1).padStart(2, "0");
+  const mesNome   = MES_ORDER[mIdx];
+  const MM        = String(mIdx + 1).padStart(2, "0");
+  const targetExp = `${year + 1}-${MM}`;
 
-  let drillRows;
-  if (type === "nova") {
-    drillRows = _indNewCertsRows.filter(r => r.data_certificacao && r.data_certificacao.slice(0, 7) === ym);
-    titleEl.textContent = `Novas Certificações — ${mesNome} ${year} (${drillRows.length})`;
-  } else {
-    const targetExp = `${yr1}-${MM}`;
-    drillRows = _indNewCertsRows.filter(r =>
-      r.data_expiracao && r.data_certificacao &&
-      r.data_expiracao.slice(0, 7) === targetExp &&
-      parseInt(r.data_certificacao.slice(0, 4)) !== year &&
-      !(r.expirado === true || r.expirado === 'X')
-    );
-    titleEl.textContent = `Renovações — ${mesNome} ${year} (${drillRows.length})`;
-  }
+  const novaRows  = _indNewCertsRows.filter(r =>
+    r.data_certificacao && r.data_certificacao.slice(0, 7) === ym
+  );
+  const renovRows = _indNewCertsRows.filter(r =>
+    r.data_expiracao && r.data_certificacao &&
+    r.data_expiracao.slice(0, 7) === targetExp &&
+    parseInt(r.data_certificacao.slice(0, 4)) !== year &&
+    !(r.expirado === true || r.expirado === 'X')
+  );
 
-  // "Ver em Certificações" link — filter by equipa if team selected
-  const teamParam = indTeamFilter ? `&filter_equipa=${encodeURIComponent(indTeamFilter)}` : "";
-  linkEl.href = `/Portal/certificacoes?filter_equipa=${encodeURIComponent(indTeamFilter || "")}`.replace("filter_equipa=&", "").replace("?filter_equipa=", teamParam ? `?${teamParam.slice(1)}` : "");
-  // simpler: just build clean URL
+  titleEl.textContent = `${mesNome} ${year} — Novas: ${novaRows.length} · Renovações: ${renovRows.length}`;
+
   linkEl.href = indTeamFilter
     ? `/Portal/certificacoes?filter_equipa=${encodeURIComponent(indTeamFilter)}`
     : `/Portal/certificacoes`;
 
-  tbody.innerHTML = drillRows.length
-    ? drillRows.map(r => {
-        const certUrl = `/Portal/certificacoes?filter_email=${encodeURIComponent(r.email || "")}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao || "")}`;
-        return `<tr>
-          <td>${escapeHtml(r.equipa || "")}</td>
-          <td>${escapeHtml(r.email || "")}</td>
-          <td>${escapeHtml(r.codigo_certificacao || "")}</td>
-          <td>${escapeHtml(r.nome_certificacao || "")}</td>
-          <td>${escapeHtml(r.data_certificacao || "")}</td>
-          <td>${escapeHtml(r.data_expiracao || "")}</td>
-          <td><a href="${certUrl}" class="mini-btn" title="Ver em Certificações" style="text-decoration:none;">↗</a></td>
-        </tr>`;
-      }).join("")
-    : `<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Sem registos</td></tr>`;
+  const buildRows = rows => rows.map(r => {
+    const certUrl = `/Portal/certificacoes?filter_email=${encodeURIComponent(r.email || "")}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao || "")}`;
+    return `<tr>
+      <td>${escapeHtml(r.equipa || "")}</td>
+      <td>${escapeHtml(r.email || "")}</td>
+      <td>${escapeHtml(r.codigo_certificacao || "")}</td>
+      <td>${escapeHtml(r.nome_certificacao || "")}</td>
+      <td>${escapeHtml(r.data_certificacao || "")}</td>
+      <td>${escapeHtml(r.data_expiracao || "")}</td>
+      <td><a href="${certUrl}" class="mini-btn" title="Ver em Certificações" style="text-decoration:none;">↗</a></td>
+    </tr>`;
+  }).join("");
+
+  const sectionHdr = (label, count) =>
+    `<tr class="drill-section-header"><td colspan="7"><strong>${label}</strong> <span style="color:var(--text-muted)">(${count})</span></td></tr>`;
+  const emptyRow =
+    `<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Sem registos</td></tr>`;
+
+  tbody.innerHTML =
+    sectionHdr("Novas Certificações", novaRows.length) +
+    (novaRows.length ? buildRows(novaRows) : emptyRow) +
+    sectionHdr("Renovações", renovRows.length) +
+    (renovRows.length ? buildRows(renovRows) : emptyRow);
 
   panel.style.display = "block";
   panel.scrollIntoView({ behavior: "smooth", block: "nearest" });

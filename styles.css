@@ -436,6 +436,7 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .kpi-warning strong { background: linear-gradient(135deg,#fb8c00,#ffcc80); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
 .kpi-caution strong { background: linear-gradient(135deg,#f9a825,#fff176); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
 .kpi-green   strong { background: linear-gradient(135deg,#00c853,#b9f6ca); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.drill-section-header td { background: rgba(255,255,255,.04); color: var(--text-muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; padding: 6px 12px !important; }
 .chart-placeholder {
   margin-top: 14px; min-height: 200px;
   border: 1px dashed var(--glass-border); border-radius: 12px;
