@@ -486,6 +486,34 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .footer-logo { height: 22px; }
 .footer-copy { font-size: .76rem; color: var(--text-muted); }
 
+/* ── FLATPICKR DATE PICKER ───────────────────────────── */
+.flatpickr-calendar {
+  background: #0d1e2e !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6) !important;
+  color: #fff !important;
+}
+.flatpickr-months, .flatpickr-month { background: transparent !important; }
+.flatpickr-current-month, .flatpickr-current-month .cur-month,
+.flatpickr-current-month .cur-year,
+.flatpickr-weekday { color: #fff !important; fill: #fff !important; }
+.flatpickr-weekdays { background: transparent !important; }
+.flatpickr-day { color: rgba(255,255,255,.65) !important; border-radius: 6px !important; border-color: transparent !important; }
+.flatpickr-day:hover { background: rgba(233,30,140,.18) !important; color: #fff !important; }
+.flatpickr-day.today { border-color: rgba(233,30,140,.5) !important; color: #e91e8c !important; }
+.flatpickr-day.today:hover { background: rgba(233,30,140,.18) !important; color: #fff !important; }
+.flatpickr-day.selected, .flatpickr-day.selected:hover {
+  background: #e91e8c !important; border-color: #e91e8c !important; color: #fff !important;
+}
+.flatpickr-day.flatpickr-disabled { color: rgba(255,255,255,.2) !important; }
+.flatpickr-prev-month svg, .flatpickr-next-month svg { fill: rgba(255,255,255,.6) !important; }
+.flatpickr-prev-month:hover svg, .flatpickr-next-month:hover svg { fill: #e91e8c !important; }
+.numInputWrapper:hover { background: rgba(255,255,255,.05) !important; }
+.numInput { color: #fff !important; background: transparent !important; }
+.flatpickr-time { border-top-color: rgba(255,255,255,.1) !important; }
+input.fp-date { cursor: pointer; }
+
 /* ── AUTOCOMPLETE DROPDOWN ───────────────────────────── */
 .ac-dropdown {
   position: absolute; top: 100%; left: 0; right: 0; z-index: 999;

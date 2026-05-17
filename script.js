@@ -182,6 +182,20 @@ function attachAutocomplete(input, suggestions) {
   });
 }
 
+function applyDatePickers(container) {
+  if (!window.flatpickr) return;
+  container.querySelectorAll("input.fp-date").forEach(inp => {
+    if (inp._flatpickr) return;
+    flatpickr(inp, {
+      dateFormat: "Y-m-d",
+      allowInput: true,
+      disableMobile: true,
+      locale: { firstDayOfWeek: 1 },
+      onChange: () => inp.dispatchEvent(new Event("change", { bubbles: true })),
+    });
+  });
+}
+
 function buildStayDataLists(rows) {
   Object.keys(filterState).forEach(field => {
     const unique = [...new Set(rows.map(r => String(r[field] ?? "")).filter(Boolean))].sort();
@@ -227,8 +241,8 @@ function renderStayTable() {
       <td class="col-codigo_certificacao">${escapeHtml(r.codigo_certificacao)}</td>
       <td class="col-nome_certificacao"><input data-field="nome_certificacao" data-idx="${idx}" value="${escapeHtml(r.nome_certificacao)}" /></td>
       <td class="col-site"><select data-field="site" data-idx="${idx}">${SITE_OPTIONS.map((s) => `<option value="${s}" ${r.site === s ? "selected" : ""}>${s}</option>`).join("")}</select></td>
-      <td class="col-data_certificacao">${escapeHtml(r.data_certificacao)}</td>
-      <td class="col-data_expiracao"><input data-field="data_expiracao" data-idx="${idx}" type="date" value="${escapeHtml(r.data_expiracao)}" /></td>
+      <td class="col-data_certificacao"><input class="fp-date" data-field="data_certificacao" data-idx="${idx}" type="text" value="${escapeHtml(r.data_certificacao ?? '')}" placeholder="AAAA-MM-DD" /></td>
+      <td class="col-data_expiracao"><input class="fp-date" data-field="data_expiracao" data-idx="${idx}" type="text" value="${escapeHtml(r.data_expiracao ?? '')}" placeholder="AAAA-MM-DD" /></td>
       <td class="col-externo"><select data-field="externo" data-idx="${idx}"><option value="" ${!r.externo ? "selected" : ""}> </option><option value="Sim" ${r.externo ? "selected" : ""}>Sim</option></select></td>
       <td class="col-status_cert"><select data-field="expirado" data-idx="${idx}"><option value="false" ${!isExp ? "selected" : ""}>Válido</option><option value="true" ${isExp ? "selected" : ""}>Expirado</option></select></td>
       <td class="col-saiu"><select data-field="saiu" data-idx="${idx}"><option value="" ${!r.saiu ? "selected" : ""}> </option><option value="Sim" ${r.saiu ? "selected" : ""}>Sim</option></select></td>
@@ -242,15 +256,16 @@ function renderStayTable() {
     <td class="col-codigo_certificacao"><input data-new="codigo_certificacao" value="${escapeHtml(newRowDraft.codigo_certificacao)}" /></td>
     <td class="col-nome_certificacao"><input data-new="nome_certificacao" value="${escapeHtml(newRowDraft.nome_certificacao)}" /></td>
     <td class="col-site"><select data-new="site">${SITE_OPTIONS.map((s) => `<option value="${s}" ${newRowDraft.site === s ? "selected" : ""}>${s}</option>`).join("")}</select></td>
-    <td class="col-data_certificacao">Hoje</td>
-    <td class="col-data_expiracao"><input data-new="data_expiracao" type="date" value="${escapeHtml(newRowDraft.data_expiracao)}" /></td>
+    <td class="col-data_certificacao"><input class="fp-date" data-new="data_certificacao" type="text" value="" placeholder="AAAA-MM-DD" /></td>
+    <td class="col-data_expiracao"><input class="fp-date" data-new="data_expiracao" type="text" value="" placeholder="AAAA-MM-DD" /></td>
     <td class="col-externo"><select data-new="externo"><option value="" selected> </option><option value="Sim">Sim</option></select></td>
-    <td class="col-status_cert">—</td>
+    <td class="col-status_cert"><select data-new="expirado"><option value="false" selected>Válido</option><option value="true">Expirado</option></select></td>
     <td class="col-saiu"><select data-new="saiu"><option value="" selected> </option><option value="Sim">Sim</option></select></td>
     <td class="col-acoes"><div class="row-actions"><button class="mini-btn cancel" id="cancelNewRowBtn" title="Cancelar">✕</button></div></td>
   </tr>` : "";
 
   tbody.innerHTML = rowsHtml + newRowHtml;
+  applyDatePickers(tbody);
   updateSortHeaderUI();
   applyColumnVisibility();
   updateTotals();
@@ -300,7 +315,7 @@ function collectRowInput(idx) {
     externo: getCheck("externo"),
     saiu: getCheck("saiu"),
     updated_at: new Date().toISOString(),
-    data_certificacao: original.data_certificacao
+    data_certificacao: getValue("data_certificacao") || original.data_certificacao
   };
 }
 async function saveExistingRow(idx) {
@@ -319,7 +334,7 @@ async function deleteExistingRow(idx) {
 }
 
 function startNewRow() {
-  newRowDraft = { equipa: "", email: "", codigo_certificacao: "", nome_certificacao: "", site: "Lisboa", data_expiracao: new Date().toISOString().slice(0, 10) };
+  newRowDraft = { equipa: "", email: "", codigo_certificacao: "", nome_certificacao: "", site: "Lisboa", data_certificacao: "", data_expiracao: "" };
   renderStayTable();
   const newInputs = [...document.querySelectorAll("[data-new]")];
   const first = newInputs.find((el) => el.closest("td")?.style.display !== "none");
@@ -335,8 +350,8 @@ function readNewRowDraft() {
     nome_certificacao: getValue("nome_certificacao"),
     site: getValue("site"),
     data_expiracao: dataExp,
-    data_certificacao: new Date().toISOString().slice(0, 10),
-    expirado: calcExpirado(dataExp),
+    data_certificacao: getValue("data_certificacao"),
+    expirado: document.querySelector('[data-new="expirado"]')?.value === "true" || calcExpirado(dataExp),
     externo: document.querySelector('[data-new="externo"]')?.value === "Sim",
     saiu: document.querySelector('[data-new="saiu"]')?.value === "Sim"
   };
