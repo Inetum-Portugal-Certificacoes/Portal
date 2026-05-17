@@ -809,53 +809,55 @@ function setupUpdateIndicadoresBtn() {
   const btn = document.getElementById("updateIndicadoresBtn");
   if (!btn) return;
 
-  const now    = new Date();
-  const ano    = now.getFullYear();
-  const mesIdx = now.getMonth();
-  const mesNum = mesIdx + 1;
-  const mesNome = MES_ORDER[mesIdx];
+  const now     = new Date();
+  const ano     = now.getFullYear();
+  const mesNum  = now.getMonth() + 1;
+  const mesNome = MES_ORDER[now.getMonth()];
   btn.title = `Atualizar Indicadores — ${mesNome} ${ano}`;
 
   btn.addEventListener("click", async () => {
     if (!stayRows.length) return;
 
+    const selectedTeam = filterState.equipa;
+    if (!selectedTeam) {
+      await _modal.alert("Seleciona uma equipa antes de atualizar os Indicadores.", "Equipa não selecionada");
+      return;
+    }
+
     const confirmed = await _modal.confirm(
-      `Confirmas a atualização dos Indicadores de Evolução Temporal para ${mesNome} ${ano}?`,
+      `Confirmas a atualização dos Indicadores de "${selectedTeam}" para ${mesNome} ${ano}?\n\nSerão contadas as certificações válidas e os consultores únicos neste momento.`,
       "Atualizar Indicadores"
     );
     if (!confirmed) return;
 
-    const selectedTeam = filterState.equipa;
-    const scope = selectedTeam ? stayRows.filter(r => r.equipa === selectedTeam) : stayRows;
+    // Count valid certs and unique consultants for the selected team right now
+    const scope = stayRows.filter(r => r.equipa === selectedTeam);
+    const valid = scope.filter(r => !(r.expirado === true || r.expirado === 'X'));
+    const certificacoes = valid.length;
+    const consultores = new Set(
+      valid.map(r => (r.email || "").toLowerCase().trim()).filter(Boolean)
+    ).size;
 
-    const groups = {};
-    for (const r of scope) {
-      if (!r.equipa) continue;
-      if (!groups[r.equipa]) groups[r.equipa] = [];
-      groups[r.equipa].push(r);
+    if (certificacoes === 0) {
+      await _modal.alert("Nenhuma certificação válida encontrada para esta equipa.", "Sem dados");
+      return;
     }
-    if (!Object.keys(groups).length) return;
 
     btn.disabled = true;
     try {
-      for (const [equipa, rows] of Object.entries(groups)) {
-        const valid = rows.filter(r => !(r.expirado === true || r.expirado === 'X'));
-        const certificacoes = valid.length;
-        const consultores = new Set(
-          valid.map(r => (r.email || "").toLowerCase().trim()).filter(Boolean)
-        ).size;
-
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/indicadores`, {
-          method: "POST",
-          headers: { ...supabaseHeaders(), "Prefer": "resolution=merge-duplicates,return=minimal" },
-          body: JSON.stringify({ ano, mes: mesNum, equipa, certificacoes, consultores })
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-      }
-      await _modal.alert(`Indicadores de ${mesNome} ${ano} atualizados com sucesso.`, "Atualização concluída");
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/indicadores`, {
+        method: "POST",
+        headers: { ...supabaseHeaders(), "Prefer": "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ ano, mes: mesNum, equipa: selectedTeam.trim(), certificacoes, consultores })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      await _modal.alert(
+        `Indicadores de "${selectedTeam}" atualizados:\n${certificacoes} certificações válidas · ${consultores} consultores únicos`,
+        `${mesNome} ${ano} — Atualização concluída`
+      );
     } catch (err) {
       console.error("Erro ao atualizar indicadores:", err);
-      await _modal.alert("Erro ao atualizar os indicadores. Tenta novamente.", "Erro");
+      await _modal.alert(`Erro ao atualizar os indicadores: ${err.message}`, "Erro");
     } finally {
       btn.disabled = false;
     }
@@ -1658,20 +1660,25 @@ async function loadIndChart(teamFilter = "") {
   const now       = new Date();
   const startYear = now.getFullYear() - 1;
   const endYear   = now.getFullYear();
-  const teamQ     = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
 
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/indicadores?select=ano,mes,certificacoes,consultores${teamQ}&order=ano,mes`,
+      `${SUPABASE_URL}/rest/v1/indicadores?select=ano,mes,equipa,certificacoes,consultores&order=ano,mes&limit=5000`,
       { headers: supabaseHeaders() }
     );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const rows = await res.json();
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    const allRows = await res.json();
+
+    // Client-side team filter — case-insensitive to handle data entry variations
+    const teamLower = teamFilter ? teamFilter.trim().toLowerCase() : "";
+    const rows = teamLower
+      ? allRows.filter(r => (r.equipa || "").trim().toLowerCase() === teamLower)
+      : allRows;
 
     // Build lookup grouped by ano+mes (sum across teams when no filter)
     const lookup = new Map();
     for (const r of rows) {
-      const key = `${r.ano}-${r.mes}`;
+      const key = `${r.ano}-${Number(r.mes)}`;
       if (lookup.has(key)) {
         const e = lookup.get(key);
         e.certificacoes += (r.certificacoes || 0);
@@ -1681,17 +1688,30 @@ async function loadIndChart(teamFilter = "") {
       }
     }
 
-    // Build month range Jan(startYear) → Dec(endYear), null for months with no data
+    // Dynamic year range: derived from actual data, with fallback to last 2 years
+    let dynStart = startYear;
+    let dynEnd   = endYear;
+    if (rows.length) {
+      dynStart = Math.min(dynStart, Math.min(...rows.map(r => r.ano)));
+      dynEnd   = Math.max(dynEnd,   Math.max(...rows.map(r => r.ano)));
+    }
+
+    // When team is filtered: use 0 for missing months (continuous visible line)
+    // When global view: use null (show only recorded snapshots)
+    const fillEmpty = teamFilter ? 0 : null;
+    const spanGaps  = !teamFilter;
+
+    // Build month range Jan(dynStart) → Dec(dynEnd)
     const labels  = [];
     const certs   = [];
     const consult = [];
 
-    for (let year = startYear; year <= endYear; year++) {
+    for (let year = dynStart; year <= dynEnd; year++) {
       for (let mIdx = 0; mIdx < 12; mIdx++) {
         const entry = lookup.get(`${year}-${mIdx + 1}`);
         labels.push(`${MES_ORDER[mIdx].slice(0, 3)} ${year}`);
-        certs.push(entry  ? entry.certificacoes : null);
-        consult.push(entry ? entry.consultores   : null);
+        certs.push(entry  ? entry.certificacoes : fillEmpty);
+        consult.push(entry ? entry.consultores   : fillEmpty);
       }
     }
 
@@ -1716,7 +1736,7 @@ async function loadIndChart(teamFilter = "") {
             pointHoverRadius: 6,
             tension: 0.35,
             fill: true,
-            spanGaps: false
+            spanGaps
           },
           {
             label: "Consultores",
@@ -1728,7 +1748,7 @@ async function loadIndChart(teamFilter = "") {
             pointHoverRadius: 6,
             tension: 0.35,
             fill: true,
-            spanGaps: false
+            spanGaps
           },
           ...extraDatasets
         ]
@@ -1758,7 +1778,7 @@ async function loadIndChart(teamFilter = "") {
           y: {
             grid: { color: "rgba(255,255,255,.06)" },
             ticks: { color: "#8899aa", font: { family: "Inter", size: 11 } },
-            beginAtZero: false
+            beginAtZero: true
           }
         }
       }
