@@ -262,16 +262,19 @@ h1, h2, h3, h4 { font-weight: 700; line-height: 1.2; }
 
 /* ── FILTER ROW ──────────────────────────────────────── */
 .filter-row th {
-  background: rgba(0,0,0,.4); padding: 5px 8px;
+  background: rgba(233,30,140,.07); padding: 5px 8px;
   font-weight: normal; text-transform: none; letter-spacing: 0;
+  border-bottom: 1px solid rgba(233,30,140,.18);
 }
 .filter-row input {
   width: 100%; padding: 5px 8px;
-  border: 1px solid rgba(255,255,255,.08); border-radius: 6px;
-  font-family: inherit; font-size: .8rem; color: var(--text);
-  background: rgba(255,255,255,.04); box-sizing: border-box; transition: border-color .2s;
+  border: 1px solid rgba(233,30,140,.22); border-radius: 6px;
+  font-family: inherit; font-size: .8rem;
+  color: #e888be;
+  background: rgba(233,30,140,.07); box-sizing: border-box; transition: border-color .2s, background .2s;
 }
-.filter-row input:focus { outline: none; border-color: var(--blue); }
+.filter-row input::placeholder { color: rgba(233,30,140,.45); opacity: 1; }
+.filter-row input:focus { outline: none; border-color: var(--pink); background: rgba(233,30,140,.12); color: #f0b0d8; }
 
 /* ── ROW ACTIONS ─────────────────────────────────────── */
 .row-actions { display: flex; gap: 6px; }
@@ -517,7 +520,8 @@ input.fp-date { cursor: pointer; }
 /* ── AUTOCOMPLETE DROPDOWN ───────────────────────────── */
 .ac-dropdown {
   position: absolute; top: 100%; left: 0; right: 0; z-index: 999;
-  list-style: none; margin: 2px 0 0; padding: 4px 0;
+  list-style: none; margin: 1px 0 0; padding: 4px 0;
+  border-top: 1px solid rgba(233,30,140,.2);
   background: var(--bg-card, #0f1923);
   border: 1px solid var(--glass-border, rgba(255,255,255,.1));
   border-radius: 8px;
@@ -586,10 +590,11 @@ input.fp-date { cursor: pointer; }
 .note-delete {
   position: absolute; top: 8px; right: 8px;
   background: none; border: none; cursor: pointer;
-  font-size: .78rem; opacity: .4; padding: 2px;
-  transition: opacity .15s;
+  font-size: .8rem; padding: 2px 4px; border-radius: 4px;
+  color: var(--text-muted); opacity: .65;
+  transition: opacity .15s, color .15s, background .15s;
 }
-.note-delete:hover { opacity: 1; }
+.note-delete:hover { opacity: 1; color: var(--red); background: rgba(229,57,53,.12); }
 .notes-empty { padding: 10px 14px; font-size: .8rem; color: var(--text-muted); text-align: center; }
 .notes-add-row {
   display: flex; flex-direction: column; gap: 6px;
