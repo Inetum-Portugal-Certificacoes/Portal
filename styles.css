@@ -406,6 +406,7 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .kpi-danger strong { background: none; -webkit-text-fill-color: #ff6060; color: #ff6060; }
 /* ── ALERT CARD LIST ─────────────────────────────────── */
 .alert-card-list { display: flex; flex-direction: column; gap: 6px; margin-top: 20px; }
+.alert-card-row  { display: flex; align-items: center; gap: 10px; }
 .alert-list-empty { color: var(--text-muted); text-align: center; padding: 24px 0; font-size: .9rem; }
 .alert-card {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
@@ -429,7 +430,8 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .alert-card-equipa { font-size: .78rem; color: var(--text-muted); white-space: nowrap; }
 .alert-card-email  { font-size: .88rem; font-weight: 500; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .alert-card-codigo { font-size: .78rem; font-weight: 600; color: var(--pink); font-family: monospace; white-space: nowrap; }
-.alert-card-data   { font-size: .78rem; color: var(--text-muted); white-space: nowrap; }
+.alert-card        { flex: 1; min-width: 0; }
+.alert-card-data   { font-size: .78rem; color: var(--text-muted); margin-left: auto; white-space: nowrap; }
 .alert-card-teams {
   display: inline-flex; align-items: center; gap: 5px; margin-left: auto;
   padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(91,138,255,.35);
