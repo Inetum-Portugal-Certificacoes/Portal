@@ -2495,7 +2495,7 @@ async function loadAlertCounters(teamFilter = "") {
           const recipients = checked.map(item => item.email).join(';');
 
           // Construir lista de certificações a expirar
-          const bulletList = checked.map(item => `• ${item.email} tem a certificação ${item.codigo} a expirar em ${item.data}`).join('\n');
+          const bulletList = checked.map(item => `• *${item.email}* tem a certificação ${item.codigo} a expirar em ${item.data}`).join('\n');
 
           // Construir body de email
           let emailBody = `Olá ,\n\nChamamos a vossa atenção para a importância da renovação das certificações que possuem atualmente ativas, garantindo que se mantêm válidas e atualizadas.\n\nÉ essencial que assegurem a renovação atempada das vossas certificações, evitando qualquer interrupção na sua validade. Este cuidado é determinante para mantermos os nossos padrões de excelência e para continuarmos a responder com qualidade às exigências dos nossos clientes.\n\nPedimos que validem o estado das vossas certificações e avancem com os respetivos processos de renovação, caso necessitem de apoio ou tenham alguma dificuldade, estejam à vontade para entrar em contacto.\n\n${bulletList}\n\nAgradecemos a vossa colaboração e compromisso.`;
