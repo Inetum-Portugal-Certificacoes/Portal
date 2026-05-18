@@ -2048,13 +2048,26 @@ function showIndNewCertsDrill(ym, year, mIdx) {
   const emptyRow =
     `<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Sem registos</td></tr>`;
 
-  tbody.innerHTML =
-    sectionHdr("Certificações Extra", extraRows.length) +
-    (extraRows.length ? buildRows(extraRows) : emptyRow) +
-    sectionHdr("Renovações", renovRows.length) +
-    (renovRows.length ? buildRows(renovRows) : emptyRow) +
-    sectionHdr("1ª Certificação", firstRows.length) +
-    (firstRows.length ? buildRows(firstRows) : emptyRow);
+  // Verificar visibilidade dos datasets no gráfico (0=Extra, 1=Renovações, 2=1ª Certificação)
+  const visibilityExtra = !(_indNewCertsChart?.getDatasetMeta(0)?.hidden);
+  const visibilityRenovacoes = !(_indNewCertsChart?.getDatasetMeta(1)?.hidden);
+  const visibilityPrimeira = !(_indNewCertsChart?.getDatasetMeta(2)?.hidden);
+
+  let html = '';
+  if (visibilityExtra) {
+    html += sectionHdr("Certificações Extra", extraRows.length) +
+            (extraRows.length ? buildRows(extraRows) : emptyRow);
+  }
+  if (visibilityRenovacoes) {
+    html += sectionHdr("Renovações", renovRows.length) +
+            (renovRows.length ? buildRows(renovRows) : emptyRow);
+  }
+  if (visibilityPrimeira) {
+    html += sectionHdr("1ª Certificação", firstRows.length) +
+            (firstRows.length ? buildRows(firstRows) : emptyRow);
+  }
+
+  tbody.innerHTML = html || `<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Todas as séries estão escondidas</td></tr>`;
 
   panel.style.display = "block";
   panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
