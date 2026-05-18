@@ -2646,18 +2646,18 @@ async function loadPlanAlerts(teamFilter = "") {
           
           if (checked.length === 0) return;
 
-          // Construir body de email formatado
-          let emailBody = `Olá,\n\nCertificações SAP - Stay Certified planeadas:\n\n`;
-          checked.forEach((item, idx) => {
-            emailBody += `${idx + 1}. Certificação: ${item.codigo}\n`;
-            emailBody += `   Mês de Certificação: ${item.data}\n`;
-            emailBody += `   Contacto: ${item.email}\n\n`;
-          });
-          emailBody += `Por favor, proceder conforme planeado.\n\nInetum Portugal - Certificações SAP`;
+          // Recolher emails dos destinatários
+          const recipients = checked.map(item => item.email).join(';');
+
+          // Construir lista de certificações planeadas
+          const bulletList = checked.map(item => `• ${item.email} planeado para certificação ${item.codigo} em ${item.data}`).join('\n');
+
+          // Construir body de email
+          let emailBody = `Olá,\n\nDe acordo com o planeamento de objetivos realizados convosco, estamos próximos da data de realização da vossa certificação SAP.\n\nEsta etapa é essencial para desenvolvermos as nossas competências, crescermos como equipa e atingirmos um objetivo crucial para a Inetum: aumentar o número de consultores certificados e garantir o nosso estatuto de parceria junto da SAP.\n\nCada um de vocês é uma peça fundamental para que este objetivo se torne realidade. Esta certificação não só fortalece as vossas competências individuais, como também posiciona a nossa equipa como um exemplo de excelência e inovação.\n\nSe estás a receber este email significa que foi feito um planeamento para obteres a tua certificação em breve. Este planeamento deve ser cumprido com a maior objetividade e compromisso possíveis.\n\n${bulletList}\n\nCaso não tenhas ainda licença de Learning Hub atribuída, informa-nos por favor.\nEm caso de dúvidas, desafios ou precisares de apoio, não hesites em entrar em contacto.\n\nObrigado e bons estudos,`;
 
           // Gerar mailto com Outlook
-          const subject = 'Certificações SAP - Stay Certified';
-          const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+          const subject = 'Certificações SAP - certificação a realizar';
+          const mailto = `mailto:${encodeURIComponent(recipients)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
           window.location.href = mailto;
         });
       }
