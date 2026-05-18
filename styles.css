@@ -408,6 +408,25 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .alert-card-list { display: flex; flex-direction: column; gap: 6px; margin-top: 20px; }
 .alert-card-row  { display: flex; align-items: center; gap: 10px; }
 .alert-list-empty { color: var(--text-muted); text-align: center; padding: 24px 0; font-size: .9rem; }
+
+/* Custom Checkbox */
+.alert-card-checkbox {
+  appearance: none; -webkit-appearance: none; width: 20px; height: 20px;
+  border: 2px solid rgba(233,30,140,.4); border-radius: 4px;
+  background: transparent; cursor: pointer; transition: all .2s;
+  flex-shrink: 0;
+}
+.alert-card-checkbox:hover {
+  border-color: var(--pink); background: rgba(233,30,140,.1);
+}
+.alert-card-checkbox:checked {
+  background: linear-gradient(135deg,var(--pink),var(--blue));
+  border-color: var(--pink);
+}
+.alert-card-checkbox:checked::after {
+  content: '✓'; display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%; color: #fff; font-weight: 700; font-size: .85rem;
+}
 .alert-card {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   padding: 12px 18px; border-radius: var(--radius);

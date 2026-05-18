@@ -2426,6 +2426,7 @@ async function loadAlertCounters(teamFilter = "") {
         const href = `/Portal/certificacoes?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`;
         const teamsHref = `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(r.email)}`;
         return `<div class="alert-card-row">
+          <input type="checkbox" class="alert-card-checkbox" aria-label="Selecionar alerta" />
           <div class="alert-card alert-card--${cls}" data-href="${escapeHtml(href)}" role="button" tabindex="0">
             <span class="alert-card-badge alert-card-badge--${cls}">${label}</span>
             <span class="alert-card-equipa">${escapeHtml(r.equipa || '—')}</span>
@@ -2513,6 +2514,7 @@ async function loadPlanAlerts(teamFilter = "") {
         const href = `/Portal/planeamento?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`;
         const teamsHref = `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(r.email)}`;
         return `<div class="alert-card-row">
+          <input type="checkbox" class="alert-card-checkbox" aria-label="Selecionar alerta" />
           <div class="alert-card alert-card--${cls}" data-href="${escapeHtml(href)}" role="button" tabindex="0">
             <span class="alert-card-badge alert-card-badge--${cls}">${escapeHtml(label)}</span>
             <span class="alert-card-equipa">${escapeHtml(r.equipa || '—')}</span>
