@@ -2424,12 +2424,17 @@ async function loadAlertCounters(teamFilter = "") {
         else if (r.data_expiracao <= in30) { cls = "warning"; label = "30 dias"; }
         else                               { cls = "green";   label = "60 dias"; }
         const href = `/Portal/certificacoes?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`;
+        const teamsHref = `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(r.email)}`;
         return `<div class="alert-card alert-card--${cls}" data-href="${escapeHtml(href)}" role="button" tabindex="0">
           <span class="alert-card-badge alert-card-badge--${cls}">${label}</span>
           <span class="alert-card-equipa">${escapeHtml(r.equipa || '—')}</span>
           <span class="alert-card-email">${escapeHtml(r.email)}</span>
           <span class="alert-card-codigo">${escapeHtml(r.codigo_certificacao)}</span>
           <span class="alert-card-data">${escapeHtml(r.data_expiracao || '—')}</span>
+          <a class="alert-card-teams" href="${escapeHtml(teamsHref)}" target="_blank" rel="noopener" title="Contactar via Teams" aria-label="Contactar via Teams" onclick="event.stopPropagation()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.625 5.625a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0ZM12 7.5a2.25 2.25 0 1 1-4.5 0A2.25 2.25 0 0 1 12 7.5Zm6 3a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.5 2.25h-3a3 3 0 0 0-1.03.183A4.5 4.5 0 0 1 16.5 16.5v.75H21a.75.75 0 0 0 .75-.75v-1.5a2.25 2.25 0 0 0-2.25-2.25Zm-8.25.75A3.75 3.75 0 0 0 7.5 17.25v.75h9v-.75A3.75 3.75 0 0 0 12.75 13.5h-1.5Z"/></svg>
+            Teams
+          </a>
         </div>`;
       }).join('');
 

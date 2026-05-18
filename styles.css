@@ -429,7 +429,15 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .alert-card-equipa { font-size: .78rem; color: var(--text-muted); white-space: nowrap; }
 .alert-card-email  { font-size: .88rem; font-weight: 500; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .alert-card-codigo { font-size: .78rem; font-weight: 600; color: var(--pink); font-family: monospace; white-space: nowrap; }
-.alert-card-data   { font-size: .78rem; color: var(--text-muted); margin-left: auto; white-space: nowrap; }
+.alert-card-data   { font-size: .78rem; color: var(--text-muted); white-space: nowrap; }
+.alert-card-teams {
+  display: inline-flex; align-items: center; gap: 5px; margin-left: auto;
+  padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(91,138,255,.35);
+  background: rgba(91,138,255,.1); color: #7ba7ff;
+  font-size: .75rem; font-weight: 500; white-space: nowrap;
+  text-decoration: none; transition: background .18s, color .18s;
+}
+.alert-card-teams:hover { background: rgba(91,138,255,.22); color: #adc4ff; }
 
 .kpi-danger  { border-color: rgba(229,57,53,.35) !important; }
 .kpi-warning { border-color: rgba(251,140,0,.35) !important; }
