@@ -342,7 +342,7 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .tile span { display: block; color: var(--text-muted); font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; }
 .tile strong { display: block; margin-top: 10px; font-size: 2rem; font-weight: 800; background: linear-gradient(135deg,var(--pink),var(--blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 .tile-sub { display: block; font-style: normal; font-size: .72rem; color: var(--text-muted); margin-top: 4px; letter-spacing: .03em; }
-.tile-sub-desc { font-size: .8rem; line-height: 1.4; margin-top: 14px; }
+.tile-sub-desc { font-size: .8rem; line-height: 1.4; margin-top: 28px; text-align: center; }
 .tile-alert-counts { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 12px; }
 .tile-alert-red  { display: flex; flex-direction: column; align-items: flex-start;  font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
 .tile-alert-orange { display: flex; flex-direction: column; align-items: flex-end; font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
