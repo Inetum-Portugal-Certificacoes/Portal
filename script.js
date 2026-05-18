@@ -2675,6 +2675,7 @@ async function loadPlanAlerts(teamFilter = "") {
 
       listEl.addEventListener("click", e => {
         if (e.target.closest('.alert-email-btn') || e.target.closest('.alert-card-checkbox')) return;
+        const card = e.target.closest("[data-href]");
         if (card) window.location.href = card.dataset.href;
       });
       listEl.addEventListener("keydown", e => {
