@@ -1829,6 +1829,29 @@ async function loadIndNewCertsChart(teamFilter = "") {
         newMap.set(certYM, (newMap.get(certYM) || 0) + 1);
     }
 
+    // 1ª Certificação: para cada email, contar registos cuja data_certificacao
+    // é a mais antiga desse email (empates na mesma data contam).
+    const firstDateByEmail = new Map();
+    for (const r of rows) {
+      if (!r.data_certificacao || !r.email) continue;
+      const emailKey = String(r.email).trim().toLowerCase();
+      if (!emailKey) continue;
+      const certDate = r.data_certificacao;
+      const prev = firstDateByEmail.get(emailKey);
+      if (!prev || certDate < prev) firstDateByEmail.set(emailKey, certDate);
+    }
+
+    const firstMap = new Map();
+    for (const r of rows) {
+      if (!r.data_certificacao || !r.email) continue;
+      const emailKey = String(r.email).trim().toLowerCase();
+      if (!emailKey) continue;
+      if (r.data_certificacao !== firstDateByEmail.get(emailKey)) continue;
+      const certYM = r.data_certificacao.slice(0, 7);
+      if (certYM >= rangeStart && certYM <= rangeEnd)
+        firstMap.set(certYM, (firstMap.get(certYM) || 0) + 1);
+    }
+
     // Renovações por mês (year, MM):
     //   - cert é válida (expirado != true)
     //   - data_expiracao é no mesmo mês do ano seguinte: YYYY-MM = (year+1)-MM
@@ -1857,13 +1880,14 @@ async function loadIndNewCertsChart(teamFilter = "") {
       }
     }
 
-    const labels = [], newCerts = [], renovs = [];
+    const labels = [], newCerts = [], renovs = [], firstCerts = [];
     for (let year = startYear; year <= endYear; year++) {
       for (let mIdx = 0; mIdx < 12; mIdx++) {
         const ym = `${year}-${String(mIdx + 1).padStart(2, "0")}`;
         labels.push(`${MES_ORDER[mIdx].slice(0, 3)} ${year}`);
         newCerts.push(newMap.get(ym)   || null);
         renovs.push(renovMap.get(ym)   || null);
+        firstCerts.push(firstMap.get(ym) || null);
       }
     }
 
@@ -1890,6 +1914,15 @@ async function loadIndNewCertsChart(teamFilter = "") {
             borderWidth: 1,
             borderRadius: 3,
             spanGaps: false
+          },
+          {
+            label: "1ª Certificação",
+            data: firstCerts,
+            backgroundColor: "rgba(0,212,255,.60)",
+            borderColor: "#00d4ff",
+            borderWidth: 1,
+            borderRadius: 3,
+            spanGaps: false
           }
         ]
       },
@@ -1899,7 +1932,7 @@ async function loadIndNewCertsChart(teamFilter = "") {
         interaction: { mode: "index", intersect: false },
         onClick: (evt, elements) => {
           if (!elements.length) return;
-          const { datasetIndex, index } = elements[0];
+          const { index } = elements[0];
           const yr  = startYear + Math.floor(index / 12);
           const mI  = index % 12;
           const MM  = String(mI + 1).padStart(2, "0");
@@ -1948,6 +1981,19 @@ async function loadIndNewCertsChart(teamFilter = "") {
   }
 }
 
+function getFirstCertDateByEmail(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    if (!r?.data_certificacao || !r?.email) continue;
+    const emailKey = String(r.email).trim().toLowerCase();
+    if (!emailKey) continue;
+    const certDate = r.data_certificacao;
+    const prev = map.get(emailKey);
+    if (!prev || certDate < prev) map.set(emailKey, certDate);
+  }
+  return map;
+}
+
 function showIndNewCertsDrill(ym, year, mIdx) {
   const panel   = document.getElementById("indNewCertsDrill");
   const titleEl = document.getElementById("indDrillTitle");
@@ -1968,7 +2014,14 @@ function showIndNewCertsDrill(ym, year, mIdx) {
     !(r.expirado === true || r.expirado === 'X')
   );
 
-  titleEl.textContent = `${mesNome} ${year} — Novas: ${novaRows.length} · Renovações: ${renovRows.length}`;
+  const firstDateByEmail = getFirstCertDateByEmail(_indNewCertsRows);
+  const firstRows = _indNewCertsRows.filter(r =>
+    r.data_certificacao && r.email &&
+    r.data_certificacao.slice(0, 7) === ym &&
+    r.data_certificacao === firstDateByEmail.get(String(r.email).trim().toLowerCase())
+  );
+
+  titleEl.textContent = `${mesNome} ${year} — Novas: ${novaRows.length} · Renovações: ${renovRows.length} · 1ª Certificação: ${firstRows.length}`;
 
   const buildRows = rows => rows.map(r => {
     const certUrl = `/Portal/certificacoes?filter_email=${encodeURIComponent(r.email || "")}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao || "")}`;
@@ -1992,7 +2045,9 @@ function showIndNewCertsDrill(ym, year, mIdx) {
     sectionHdr("Novas Certificações", novaRows.length) +
     (novaRows.length ? buildRows(novaRows) : emptyRow) +
     sectionHdr("Renovações", renovRows.length) +
-    (renovRows.length ? buildRows(renovRows) : emptyRow);
+    (renovRows.length ? buildRows(renovRows) : emptyRow) +
+    sectionHdr("1ª Certificação", firstRows.length) +
+    (firstRows.length ? buildRows(firstRows) : emptyRow);
 
   panel.style.display = "block";
   panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
