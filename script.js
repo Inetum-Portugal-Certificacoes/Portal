@@ -1902,6 +1902,15 @@ async function loadIndNewCertsChart(teamFilter = "") {
         labels,
         datasets: [
           {
+            label: "1ª Certificação",
+            data: firstCerts,
+            backgroundColor: "rgba(0,212,255,.60)",
+            borderColor: "#00d4ff",
+            borderWidth: 1,
+            borderRadius: 3,
+            spanGaps: false
+          },
+          {
             label: "Certificações Extra",
             data: extraCerts,
             backgroundColor: "rgba(233,30,140,.65)",
@@ -1915,15 +1924,6 @@ async function loadIndNewCertsChart(teamFilter = "") {
             data: renovs,
             backgroundColor: "rgba(255,160,50,.65)",
             borderColor: "#ffa032",
-            borderWidth: 1,
-            borderRadius: 3,
-            spanGaps: false
-          },
-          {
-            label: "1ª Certificação",
-            data: firstCerts,
-            backgroundColor: "rgba(0,212,255,.60)",
-            borderColor: "#00d4ff",
             borderWidth: 1,
             borderRadius: 3,
             spanGaps: false
@@ -2028,7 +2028,7 @@ function showIndNewCertsDrill(ym, year, mIdx) {
     !(r.email && r.data_certificacao === firstDateByEmail.get(String(r.email).trim().toLowerCase()))
   );
 
-  titleEl.textContent = `${mesNome} ${year} — Certificações Extra: ${extraRows.length} · Renovações: ${renovRows.length} · 1ª Certificação: ${firstRows.length}`;
+  titleEl.textContent = `${mesNome} ${year} — 1ª Certificação: ${firstRows.length} · Certificações Extra: ${extraRows.length} · Renovações: ${renovRows.length}`;
 
   const buildRows = rows => rows.map(r => {
     const certUrl = `/Portal/certificacoes?filter_email=${encodeURIComponent(r.email || "")}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao || "")}`;
@@ -2048,12 +2048,16 @@ function showIndNewCertsDrill(ym, year, mIdx) {
   const emptyRow =
     `<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Sem registos</td></tr>`;
 
-  // Verificar visibilidade dos datasets no gráfico (0=Extra, 1=Renovações, 2=1ª Certificação)
-  const visibilityExtra = !(_indNewCertsChart?.getDatasetMeta(0)?.hidden);
-  const visibilityRenovacoes = !(_indNewCertsChart?.getDatasetMeta(1)?.hidden);
-  const visibilityPrimeira = !(_indNewCertsChart?.getDatasetMeta(2)?.hidden);
+  // Verificar visibilidade dos datasets no gráfico (0=1ª Certificação, 1=Extra, 2=Renovações)
+  const visibilityPrimeira = !(_indNewCertsChart?.getDatasetMeta(0)?.hidden);
+  const visibilityExtra = !(_indNewCertsChart?.getDatasetMeta(1)?.hidden);
+  const visibilityRenovacoes = !(_indNewCertsChart?.getDatasetMeta(2)?.hidden);
 
   let html = '';
+  if (visibilityPrimeira) {
+    html += sectionHdr("1ª Certificação", firstRows.length) +
+            (firstRows.length ? buildRows(firstRows) : emptyRow);
+  }
   if (visibilityExtra) {
     html += sectionHdr("Certificações Extra", extraRows.length) +
             (extraRows.length ? buildRows(extraRows) : emptyRow);
@@ -2061,10 +2065,6 @@ function showIndNewCertsDrill(ym, year, mIdx) {
   if (visibilityRenovacoes) {
     html += sectionHdr("Renovações", renovRows.length) +
             (renovRows.length ? buildRows(renovRows) : emptyRow);
-  }
-  if (visibilityPrimeira) {
-    html += sectionHdr("1ª Certificação", firstRows.length) +
-            (firstRows.length ? buildRows(firstRows) : emptyRow);
   }
 
   tbody.innerHTML = html || `<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Todas as séries estão escondidas</td></tr>`;
