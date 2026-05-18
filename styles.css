@@ -433,8 +433,9 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .alert-card        { flex: 1; min-width: 0; }
 .alert-card-data   { font-size: .78rem; color: var(--text-muted); margin-left: auto; white-space: nowrap; }
 .alert-card-teams {
-  display: inline-flex; align-items: center; gap: 5px; margin-left: auto;
-  padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(91,138,255,.35);
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  align-self: stretch;
+  padding: 0 12px; border-radius: 6px; border: 1px solid rgba(91,138,255,.35);
   background: rgba(91,138,255,.1); color: #7ba7ff;
   font-size: .75rem; font-weight: 500; white-space: nowrap;
   text-decoration: none; transition: background .18s, color .18s;
