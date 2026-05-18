@@ -1,4 +1,4 @@
-﻿// Capture URL params before any IIFE clears them via history.replaceState
+// Capture URL params before any IIFE clears them via history.replaceState
 const _initSearch = window.location.search;
 if (_initSearch) history.replaceState(null, "", window.location.pathname);
 
@@ -15,7 +15,7 @@ const COLUMN_LABELS = {
   nome_certificacao: "Certificacao",
   site: "Site",
   data_certificacao: "Data Certificacao",
-  data_expiracao: "VÃ¡lida atÃ©",
+  data_expiracao: "Válida até",
   externo: "Externo",
   status_cert: "Status",
   saiu: "Saiu",
@@ -101,7 +101,7 @@ function applyFilters(rows) {
       let haystack;
       if (key === "externo") haystack = externoLabel(row).toLowerCase();
       else if (key === "saiu") haystack = saiuLabel(row).toLowerCase();
-      else if (key === "status_cert") haystack = (row.expirado === true || row.expirado === 'X') ? "expirado" : "vÃ¡lido";
+      else if (key === "status_cert") haystack = (row.expirado === true || row.expirado === 'X') ? "expirado" : "válido";
       else haystack = String(row[key] ?? "").toLowerCase();
       return haystack.includes(needle);
     })
@@ -222,7 +222,7 @@ function renderStayTable() {
   const rowsHtml = displayedRows.map((r, idx) => {
     const statusBadge = (r.expirado === true || r.expirado === 'X')
       ? '<span class="badge danger">Expirado</span>'
-      : '<span class="badge ok">VÃ¡lido</span>';
+      : '<span class="badge ok">Válido</span>';
     const rowNotes = stayNotes.filter(n => n.equipa === r.equipa && n.email === r.email && n.codigo_certificacao === r.codigo_certificacao);
     const notesBtnHtml = `<button class="notes-trigger${rowNotes.length > 0 ? ' has-notes' : ''}"
       data-notes-equipa="${escapeHtml(r.equipa)}"
@@ -257,10 +257,10 @@ function renderStayTable() {
       <td class="col-data_certificacao"><input class="fp-date" data-field="data_certificacao" data-idx="${idx}" type="text" value="${escapeHtml(r.data_certificacao ?? '')}" placeholder="AAAA-MM-DD" /></td>
       <td class="col-data_expiracao"><input class="fp-date" data-field="data_expiracao" data-idx="${idx}" type="text" value="${escapeHtml(r.data_expiracao ?? '')}" placeholder="AAAA-MM-DD" /></td>
       <td class="col-externo"><select data-field="externo" data-idx="${idx}"><option value="" ${!r.externo ? "selected" : ""}> </option><option value="Sim" ${r.externo ? "selected" : ""}>Sim</option></select></td>
-      <td class="col-status_cert"><select data-field="expirado" data-idx="${idx}"><option value="false" ${!isExp ? "selected" : ""}>VÃ¡lido</option><option value="true" ${isExp ? "selected" : ""}>Expirado</option></select></td>
+      <td class="col-status_cert"><select data-field="expirado" data-idx="${idx}"><option value="false" ${!isExp ? "selected" : ""}>Válido</option><option value="true" ${isExp ? "selected" : ""}>Expirado</option></select></td>
       <td class="col-saiu"><select data-field="saiu" data-idx="${idx}"><option value="" ${!r.saiu ? "selected" : ""}> </option><option value="Sim" ${r.saiu ? "selected" : ""}>Sim</option></select></td>
       <td class="col-notas">${notesBtnHtml}</td>
-      <td class="col-acoes"><div class="row-actions"><button class="mini-btn cancel" data-action="delete-row" data-idx="${idx}" title="Eliminar registo">ðŸ—‘</button></div></td>
+      <td class="col-acoes"><div class="row-actions"><button class="mini-btn cancel" data-action="delete-row" data-idx="${idx}" title="Eliminar registo">🗑</button></div></td>
     </tr>`;
   }).join("");
 
@@ -273,10 +273,10 @@ function renderStayTable() {
     <td class="col-data_certificacao"><input class="fp-date" data-new="data_certificacao" type="text" value="" placeholder="AAAA-MM-DD" /></td>
     <td class="col-data_expiracao"><input class="fp-date" data-new="data_expiracao" type="text" value="" placeholder="AAAA-MM-DD" /></td>
     <td class="col-externo"><select data-new="externo"><option value="" selected> </option><option value="Sim">Sim</option></select></td>
-    <td class="col-status_cert"><select data-new="expirado"><option value="false" selected>VÃ¡lido</option><option value="true">Expirado</option></select></td>
+    <td class="col-status_cert"><select data-new="expirado"><option value="false" selected>Válido</option><option value="true">Expirado</option></select></td>
     <td class="col-saiu"><select data-new="saiu"><option value="" selected> </option><option value="Sim">Sim</option></select></td>
-    <td class="col-notas">â€”</td>
-    <td class="col-acoes"><div class="row-actions"><button class="mini-btn cancel" id="cancelNewRowBtn" title="Cancelar">âœ•</button></div></td>
+    <td class="col-notas">—</td>
+    <td class="col-acoes"><div class="row-actions"><button class="mini-btn cancel" id="cancelNewRowBtn" title="Cancelar">✕</button></div></td>
   </tr>` : "";
 
   tbody.innerHTML = rowsHtml + newRowHtml;
@@ -342,7 +342,7 @@ async function saveExistingRow(idx) {
 }
 async function deleteExistingRow(idx) {
   const row = displayedRows[idx];
-  if (!await _modal.confirm(`Eliminar o registo ${row.email} / ${row.codigo_certificacao}?`, "Confirmar eliminaÃ§Ã£o")) return;
+  if (!await _modal.confirm(`Eliminar o registo ${row.email} / ${row.codigo_certificacao}?`, "Confirmar eliminação")) return;
   const query = `equipa=eq.${encodeURIComponent(row.equipa)}&email=eq.${encodeURIComponent(row.email)}&codigo_certificacao=eq.${encodeURIComponent(row.codigo_certificacao)}`;
   const [res] = await Promise.all([
     fetch(`${SUPABASE_URL}/rest/v1/stay_certified?${query}`, { method: "DELETE", headers: supabaseHeaders() }),
@@ -384,7 +384,7 @@ function readNewRowDraft() {
 async function insertNewRow() {
   const payload = readNewRowDraft();
   if (!payload.equipa || !payload.email || !payload.codigo_certificacao || !payload.nome_certificacao) {
-    await _modal.alert("Preenche todos os campos obrigatÃ³rios: equipa, email, cÃ³digo e certificaÃ§Ã£o.");
+    await _modal.alert("Preenche todos os campos obrigatórios: equipa, email, código e certificação.");
     return;
   }
   const isDuplicate = stayRows.some((r) =>
@@ -393,7 +393,7 @@ async function insertNewRow() {
     r.codigo_certificacao === payload.codigo_certificacao
   );
   if (isDuplicate) {
-    await _modal.alert("JÃ¡ existe um registo com esta combinaÃ§Ã£o de equipa, email e cÃ³digo de certificaÃ§Ã£o.", "Registo duplicado");
+    await _modal.alert("Já existe um registo com esta combinação de equipa, email e código de certificação.", "Registo duplicado");
     return;
   }
   const res = await fetch(`${SUPABASE_URL}/rest/v1/stay_certified`, { method: "POST", headers: supabaseHeaders({ Prefer: "return=representation" }), body: JSON.stringify(payload) });
@@ -469,7 +469,7 @@ const _modal = (() => {
   }
   return {
     alert:   (msg, title = "Aviso")                                          => show(title, msg, false),
-    confirm: (msg, title = "ConfirmaÃ§Ã£o", ok = "OK", cancel = "Cancelar")    => show(title, msg, true, ok, cancel)
+    confirm: (msg, title = "Confirmação", ok = "OK", cancel = "Cancelar")    => show(title, msg, true, ok, cancel)
   };
 })();
 function setupColumnMenu() {
@@ -521,10 +521,10 @@ function updateStaySaveAllBtnState(saveAllBtn) {
 
 function cleanExcelVal(col, val) {
   if (val === null || val === undefined) return "";
-  if (typeof val === "boolean") return val ? "Sim" : "NÃ£o";
+  if (typeof val === "boolean") return val ? "Sim" : "Não";
   const s = String(val);
   if (s === "true")  return "Sim";
-  if (s === "false") return "NÃ£o";
+  if (s === "false") return "Não";
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
     const [y, m, d] = s.split("-");
     return `${d}/${m}/${y}`;
@@ -571,9 +571,9 @@ function setupStayCertifiedEdition() {
       const today = new Date().toISOString().slice(0, 10);
       const processedRows = displayedRows.map(r => ({
         ...r,
-        status_cert: (r.expirado === true || r.expirado === "X") ? "Expirado" : "VÃ¡lido",
-        externo: r.externo ? "Sim" : "NÃ£o",
-        saiu:    r.saiu    ? "Sim" : "NÃ£o",
+        status_cert: (r.expirado === true || r.expirado === "X") ? "Expirado" : "Válido",
+        externo: r.externo ? "Sim" : "Não",
+        saiu:    r.saiu    ? "Sim" : "Não",
       }));
       exportToExcel(processedRows, exportCols, exportLabels, `certificacoes_${today}.xlsx`);
     });
@@ -614,8 +614,8 @@ function setupStayCertifiedEdition() {
     const hasPending = stayDirtySet.size > 0 || newRowDraft !== null;
     if (hasPending) {
       const save = await _modal.confirm(
-        "Existem alteraÃ§Ãµes nÃ£o guardadas. Guardar antes de sair do modo de ediÃ§Ã£o?",
-        "AlteraÃ§Ãµes pendentes",
+        "Existem alterações não guardadas. Guardar antes de sair do modo de edição?",
+        "Alterações pendentes",
         "Guardar",
         "Descartar"
       );
@@ -777,7 +777,7 @@ function setupLayoutExtras() {
     reveals.forEach((el) => obs.observe(el));
   }
 
-  // Back button â€” inject on all pages except home
+  // Back button — inject on all pages except home
   const isHome = !!document.querySelector(".hero-tall");
   if (!isHome) {
     const heroContent = document.querySelector(".hero-content");
@@ -817,19 +817,19 @@ function setupUpdateIndicadoresBtn() {
   const ano     = now.getFullYear();
   const mesNum  = now.getMonth() + 1;
   const mesNome = MES_ORDER[now.getMonth()];
-  btn.title = `Atualizar Indicadores â€” ${mesNome} ${ano}`;
+  btn.title = `Atualizar Indicadores — ${mesNome} ${ano}`;
 
   btn.addEventListener("click", async () => {
     if (!stayRows.length) return;
 
     const selectedTeam = filterState.equipa;
     if (!selectedTeam) {
-      await _modal.alert("Seleciona uma equipa antes de atualizar os Indicadores.", "Equipa nÃ£o selecionada");
+      await _modal.alert("Seleciona uma equipa antes de atualizar os Indicadores.", "Equipa não selecionada");
       return;
     }
 
     const confirmed = await _modal.confirm(
-      `Confirmas a atualizaÃ§Ã£o dos Indicadores de "${selectedTeam}" para ${mesNome} ${ano}?\n\nSerÃ£o contadas as certificaÃ§Ãµes vÃ¡lidas e os consultores Ãºnicos neste momento.`,
+      `Confirmas a atualização dos Indicadores de "${selectedTeam}" para ${mesNome} ${ano}?\n\nSerão contadas as certificações válidas e os consultores únicos neste momento.`,
       "Atualizar Indicadores"
     );
     if (!confirmed) return;
@@ -843,7 +843,7 @@ function setupUpdateIndicadoresBtn() {
     ).size;
 
     if (certificacoes === 0) {
-      await _modal.alert("Nenhuma certificaÃ§Ã£o vÃ¡lida encontrada para esta equipa.", "Sem dados");
+      await _modal.alert("Nenhuma certificação válida encontrada para esta equipa.", "Sem dados");
       return;
     }
 
@@ -856,8 +856,8 @@ function setupUpdateIndicadoresBtn() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       await _modal.alert(
-        `Indicadores de "${selectedTeam}" atualizados:\n${certificacoes} certificaÃ§Ãµes vÃ¡lidas Â· ${consultores} consultores Ãºnicos`,
-        `${mesNome} ${ano} â€” AtualizaÃ§Ã£o concluÃ­da`
+        `Indicadores de "${selectedTeam}" atualizados:\n${certificacoes} certificações válidas · ${consultores} consultores únicos`,
+        `${mesNome} ${ano} — Atualização concluída`
       );
     } catch (err) {
       console.error("Erro ao atualizar indicadores:", err);
@@ -883,18 +883,18 @@ function setupUpdateIndicadoresBtn() {
 
 loadStayCertifiedTable();
 
-// â”€â”€ PLANEAMENTO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── PLANEAMENTO ──────────────────────────────────────────────────────────────
 
-const MES_OPTIONS = ["", "Janeiro", "Fevereiro", "MarÃ§o", "Abril", "Maio", "Junho",
+const MES_OPTIONS = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const STATUS_OPTIONS = ["Planeado", "Cancelado"];
 
-// quarter Ã© coluna gerada no Supabase (calculada a partir de mes_certificacao)
+// quarter é coluna gerada no Supabase (calculada a partir de mes_certificacao)
 const PLAN_COLUMN_KEYS = ["equipa", "quarter", "mes_certificacao", "email", "codigo_certificacao", "nome_certificacao", "site", "status", "notas", "acoes"];
 const PLAN_COLUMN_LABELS = {
-  equipa: "Equipa", quarter: "Quarter", mes_certificacao: "MÃªs Certif.", email: "Email",
-  codigo_certificacao: "CÃ³digo", nome_certificacao: "CertificaÃ§Ã£o",
-  site: "Site", status: "Status", notas: "Notas", acoes: "AÃ§Ãµes"
+  equipa: "Equipa", quarter: "Quarter", mes_certificacao: "Mês Certif.", email: "Email",
+  codigo_certificacao: "Código", nome_certificacao: "Certificação",
+  site: "Site", status: "Status", notas: "Notas", acoes: "Ações"
 };
 
 let planRows = [];
@@ -918,7 +918,7 @@ function applyPlanFilters(rows) {
   );
 }
 
-const MES_ORDER = ["Janeiro","Fevereiro","MarÃ§o","Abril","Maio","Junho",
+const MES_ORDER = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
   "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
 setupUpdateIndicadoresBtn();
@@ -969,7 +969,7 @@ function renderPlanTable() {
 
   const mesSelect = (field, idx, val) =>
     `<select data-pfield="${field}" data-pidx="${idx}">${MES_OPTIONS.map((m) =>
-      `<option value="${m}" ${val === m ? "selected" : ""}>${m || "â€”"}</option>`).join("")}</select>`;
+      `<option value="${m}" ${val === m ? "selected" : ""}>${m || "—"}</option>`).join("")}</select>`;
 
   const statusBadge = (s) => {
     const cls = s === "Cancelado" ? "danger" : "ok";
@@ -1011,27 +1011,27 @@ function renderPlanTable() {
       <td class="col-status">${statusSel}</td>
       <td class="col-notas">${notesBtnHtml}</td>
       <td class="col-acoes"><div class="row-actions">
-        <button class="mini-btn cancel" data-paction="delete-row" data-pidx="${idx}" title="Eliminar">ðŸ—‘</button>
+        <button class="mini-btn cancel" data-paction="delete-row" data-pidx="${idx}" title="Eliminar">🗑</button>
       </div></td>
     </tr>`;
   }).join("");
 
   const newSiteOpts   = SITE_OPTIONS.map((s) => `<option value="${s}">${s}</option>`).join("");
-  const newMesOpts    = MES_OPTIONS.map((m) => `<option value="${m}">${m || "â€”"}</option>`).join("");
+  const newMesOpts    = MES_OPTIONS.map((m) => `<option value="${m}">${m || "—"}</option>`).join("");
   const newStatusOpts = STATUS_OPTIONS.map((s) => `<option value="${s}">${s}</option>`).join("");
 
   const newRowHtml = planEditMode && planNewRowDraft ? `<tr>
     <td class="col-equipa"><input data-pnew="equipa" /></td>
-    <td class="col-quarter">â€”</td>
+    <td class="col-quarter">—</td>
     <td class="col-mes_certificacao"><select data-pnew="mes_certificacao">${newMesOpts}</select></td>
     <td class="col-email"><input data-pnew="email" type="email" /></td>
     <td class="col-codigo_certificacao"><input data-pnew="codigo_certificacao" /></td>
     <td class="col-nome_certificacao"><input data-pnew="nome_certificacao" /></td>
     <td class="col-site"><select data-pnew="site">${newSiteOpts}</select></td>
     <td class="col-status"><select data-pnew="status">${newStatusOpts}</select></td>
-    <td class="col-notas">â€”</td>
+    <td class="col-notas">—</td>
     <td class="col-acoes"><div class="row-actions">
-      <button class="mini-btn cancel" id="cancelPlanNewRowBtn" title="Cancelar">âœ•</button>
+      <button class="mini-btn cancel" id="cancelPlanNewRowBtn" title="Cancelar">✕</button>
     </div></td>
   </tr>` : "";
 
@@ -1109,7 +1109,7 @@ async function savePlanRow(idx) {
 
 async function deletePlanRow(idx) {
   const row = planDisplayedRows[idx];
-  if (!await _modal.confirm(`Eliminar o registo ${row.email} / ${row.codigo_certificacao}?`, "Confirmar eliminaÃ§Ã£o")) return;
+  if (!await _modal.confirm(`Eliminar o registo ${row.email} / ${row.codigo_certificacao}?`, "Confirmar eliminação")) return;
   const query = `equipa=eq.${encodeURIComponent(row.equipa)}&email=eq.${encodeURIComponent(row.email)}&codigo_certificacao=eq.${encodeURIComponent(row.codigo_certificacao)}`;
   const [res] = await Promise.all([
     fetch(`${SUPABASE_URL}/rest/v1/planeamento?${query}`, { method: "DELETE", headers: supabaseHeaders() }),
@@ -1132,11 +1132,11 @@ async function insertPlanRow() {
     created_at: new Date().toISOString(), updated_at: new Date().toISOString()
   };
   if (!payload.email || !payload.codigo_certificacao || !payload.nome_certificacao) {
-    await _modal.alert("Preenche todos os campos obrigatÃ³rios: email, cÃ³digo e certificaÃ§Ã£o.");
+    await _modal.alert("Preenche todos os campos obrigatórios: email, código e certificação.");
     return;
   }
   if (planRows.some((r) => r.email === payload.email && r.codigo_certificacao === payload.codigo_certificacao)) {
-    await _modal.alert("JÃ¡ existe um registo com esta combinaÃ§Ã£o de email e cÃ³digo.", "Registo duplicado");
+    await _modal.alert("Já existe um registo com esta combinação de email e código.", "Registo duplicado");
     return;
   }
   const res = await fetch(`${SUPABASE_URL}/rest/v1/planeamento`,
@@ -1172,7 +1172,7 @@ function renderPlanTeamTiles(rows) {
   if (!container) return;
   const counts = {};
   rows.forEach((r) => {
-    const eq = (r.equipa || "").trim() || "â€”";
+    const eq = (r.equipa || "").trim() || "—";
     counts[eq] = (counts[eq] || 0) + 1;
   });
   const teams = Object.keys(counts).sort();
@@ -1235,7 +1235,7 @@ function updateSaveAllBtnState(saveAllBtn) {
   saveAllBtn.classList.toggle("has-changes", hasPending);
 }
 
-// â”€â”€ NOTES POPOVER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── NOTES POPOVER ─────────────────────────────────────────────────────────────
 
 function formatNoteDate(iso) {
   if (!iso) return "";
@@ -1285,14 +1285,14 @@ function openNotesPopover(equipa, email, codigo, anchorEl, table) {
   pop.innerHTML = `
     <div class="notes-popover-header">
       <span>Notas</span>
-      <button class="notes-popover-close" title="Fechar">âœ•</button>
+      <button class="notes-popover-close" title="Fechar">✕</button>
     </div>
     <div class="notes-list">
       ${notes.length
         ? notes.map(n => `<div class="note-item" data-note-id="${escapeHtml(n.id_nota)}">
             <div class="note-meta">${formatNoteDate(n.created_at)}</div>
             <div class="note-text">${escapeHtml(n.nota)}</div>
-            <button class="note-delete" data-note-id="${escapeHtml(n.id_nota)}" title="Eliminar">ðŸ—‘</button>
+            <button class="note-delete" data-note-id="${escapeHtml(n.id_nota)}" title="Eliminar">🗑</button>
           </div>`).join("")
         : '<p class="notes-empty">Sem notas.</p>'}
     </div>
@@ -1354,7 +1354,7 @@ async function addNote(equipa, email, codigo, nota, table) {
     item.dataset.noteId = newNote.id_nota;
     item.innerHTML = `<div class="note-meta">${formatNoteDate(newNote.created_at)}</div>
       <div class="note-text">${escapeHtml(newNote.nota)}</div>
-      <button class="note-delete" data-note-id="${escapeHtml(newNote.id_nota)}" title="Eliminar">ðŸ—‘</button>`;
+      <button class="note-delete" data-note-id="${escapeHtml(newNote.id_nota)}" title="Eliminar">🗑</button>`;
     list.appendChild(item);
   }
   _updateNotesTrigger(equipa, email, codigo, table);
@@ -1437,8 +1437,8 @@ function setupPlaneamentoEdition() {
     const hasPending = planDirtySet.size > 0 || planNewRowDraft !== null;
     if (hasPending) {
       const save = await _modal.confirm(
-        "Existem alteraÃ§Ãµes nÃ£o guardadas. Guardar antes de sair do modo de ediÃ§Ã£o?",
-        "AlteraÃ§Ãµes pendentes",
+        "Existem alterações não guardadas. Guardar antes de sair do modo de edição?",
+        "Alterações pendentes",
         "Guardar",
         "Descartar"
       );
@@ -1572,7 +1572,7 @@ setupPlaneamentoEdition();
 
 loadPlaneamentoTable();
 
-// â”€â”€ INDICADORES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── INDICADORES ──────────────────────────────────────────────────────────────
 
 let indTeamFilter = "";
 let _indEvolutionChart = null;
@@ -1588,7 +1588,7 @@ async function loadIndOverview(teamFilter = "") {
   if (!elCerts && !elConsult && !elExternos && !elPerdidas) return;
 
   const setText = (el, v) => { if (el) el.textContent = v; };
-  setText(elCerts, "â€¦"); setText(elConsult, "â€¦"); setText(elExternos, "â€¦"); setText(elPerdidas, "â€¦");
+  setText(elCerts, "…"); setText(elConsult, "…"); setText(elExternos, "…"); setText(elPerdidas, "…");
 
   const valid    = "expirado=not.is.true";
   const expired  = "expirado=is.true";
@@ -1615,7 +1615,7 @@ async function loadIndOverview(teamFilter = "") {
     }
   } catch (err) {
     console.error("Erro ao carregar overview de indicadores:", err);
-    setText(elCerts, "â€”"); setText(elConsult, "â€”"); setText(elExternos, "â€”"); setText(elPerdidas, "â€”");
+    setText(elCerts, "—"); setText(elConsult, "—"); setText(elExternos, "—"); setText(elPerdidas, "—");
   }
 }
 
@@ -1676,7 +1676,7 @@ async function loadIndChart(teamFilter = "") {
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
     const allRows = await res.json();
 
-    // Client-side team filter â€” case-insensitive to handle data entry variations
+    // Client-side team filter — case-insensitive to handle data entry variations
     const teamLower = teamFilter ? teamFilter.trim().toLowerCase() : "";
     const rows = teamLower
       ? allRows.filter(r => (r.equipa || "").trim().toLowerCase() === teamLower)
@@ -1706,8 +1706,8 @@ async function loadIndChart(teamFilter = "") {
     const curYear  = now.getFullYear();
     const curMonth = now.getMonth() + 1;
 
-    // Build full range: Jan(startYear) â†’ Dec(endYear) â€” all 24 months always visible
-    // Past/current months with team filter â†’ 0 (continuous line); future months â†’ null (no data)
+    // Build full range: Jan(startYear) → Dec(endYear) — all 24 months always visible
+    // Past/current months with team filter → 0 (continuous line); future months → null (no data)
     const labels  = [];
     const certs   = [];
     const consult = [];
@@ -1728,7 +1728,7 @@ async function loadIndChart(teamFilter = "") {
 
     if (_indEvolutionChart) { _indEvolutionChart.destroy(); _indEvolutionChart = null; }
 
-    // Projection target lines (flat dashed) â€” built via shared helper
+    // Projection target lines (flat dashed) — built via shared helper
     const proj         = teamFilter ? projLoad(teamFilter) : {};
     const extraDatasets = teamFilter ? _buildProjDatasets(proj, labels.length) : [];
 
@@ -1738,7 +1738,7 @@ async function loadIndChart(teamFilter = "") {
         labels,
         datasets: [
           {
-            label: "CertificaÃ§Ãµes",
+            label: "Certificações",
             data: certs,
             borderColor: "#E91E8C",
             backgroundColor: "rgba(233,30,140,.12)",
@@ -1795,7 +1795,7 @@ async function loadIndChart(teamFilter = "") {
       }
     });
   } catch (err) {
-    console.error("Erro ao carregar grÃ¡fico de indicadores:", err);
+    console.error("Erro ao carregar gráfico de indicadores:", err);
   }
 }
 
@@ -1820,7 +1820,7 @@ async function loadIndNewCertsChart(teamFilter = "") {
     _indNewCertsRows = rows;
     _indNewCertsStartYear = startYear;
 
-    // Novas certificaÃ§Ãµes: count by data_certificacao month
+    // Novas certificações: count by data_certificacao month
     const newMap = new Map();
     for (const r of rows) {
       if (!r.data_certificacao) continue;
@@ -1829,11 +1829,11 @@ async function loadIndNewCertsChart(teamFilter = "") {
         newMap.set(certYM, (newMap.get(certYM) || 0) + 1);
     }
 
-    // RenovaÃ§Ãµes por mÃªs (year, MM):
-    //   - cert Ã© vÃ¡lida (expirado != true)
-    //   - data_expiracao Ã© no mesmo mÃªs do ano seguinte: YYYY-MM = (year+1)-MM
-    //   - data_certificacao NÃƒO Ã© do ano em questÃ£o (year)
-    // PrÃ©-Ã­ndice: expiry YYYY-MM â†’ [{certYear, valid}]
+    // Renovações por mês (year, MM):
+    //   - cert é válida (expirado != true)
+    //   - data_expiracao é no mesmo mês do ano seguinte: YYYY-MM = (year+1)-MM
+    //   - data_certificacao NÃO é do ano em questão (year)
+    // Pré-índice: expiry YYYY-MM → [{certYear, valid}]
     const expiryIdx = new Map();
     for (const r of rows) {
       if (!r.data_expiracao || !r.data_certificacao) continue;
@@ -1874,7 +1874,7 @@ async function loadIndNewCertsChart(teamFilter = "") {
         labels,
         datasets: [
           {
-            label: "Novas CertificaÃ§Ãµes",
+            label: "Novas Certificações",
             data: newCerts,
             backgroundColor: "rgba(233,30,140,.65)",
             borderColor: "#E91E8C",
@@ -1883,7 +1883,7 @@ async function loadIndNewCertsChart(teamFilter = "") {
             spanGaps: false
           },
           {
-            label: "RenovaÃ§Ãµes",
+            label: "Renovações",
             data: renovs,
             backgroundColor: "rgba(255,160,50,.65)",
             borderColor: "#ffa032",
@@ -1944,7 +1944,7 @@ async function loadIndNewCertsChart(teamFilter = "") {
       };
     }
   } catch (err) {
-    console.error("Erro ao carregar grÃ¡fico de novas certificaÃ§Ãµes:", err);
+    console.error("Erro ao carregar gráfico de novas certificações:", err);
   }
 }
 
@@ -1968,7 +1968,7 @@ function showIndNewCertsDrill(ym, year, mIdx) {
     !(r.expirado === true || r.expirado === 'X')
   );
 
-  titleEl.textContent = `${mesNome} ${year} â€” Novas: ${novaRows.length} Â· RenovaÃ§Ãµes: ${renovRows.length}`;
+  titleEl.textContent = `${mesNome} ${year} — Novas: ${novaRows.length} · Renovações: ${renovRows.length}`;
 
   const buildRows = rows => rows.map(r => {
     const certUrl = `/Portal/certificacoes?filter_email=${encodeURIComponent(r.email || "")}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao || "")}`;
@@ -1979,7 +1979,7 @@ function showIndNewCertsDrill(ym, year, mIdx) {
       <td>${escapeHtml(r.nome_certificacao || "")}</td>
       <td>${escapeHtml(r.data_certificacao || "")}</td>
       <td>${escapeHtml(r.data_expiracao || "")}</td>
-      <td><a href="${certUrl}" class="mini-btn" title="Ver em CertificaÃ§Ãµes" style="text-decoration:none;">â†—</a></td>
+      <td><a href="${certUrl}" class="mini-btn" title="Ver em Certificações" style="text-decoration:none;">↗</a></td>
     </tr>`;
   }).join("");
 
@@ -1989,16 +1989,16 @@ function showIndNewCertsDrill(ym, year, mIdx) {
     `<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Sem registos</td></tr>`;
 
   tbody.innerHTML =
-    sectionHdr("Novas CertificaÃ§Ãµes", novaRows.length) +
+    sectionHdr("Novas Certificações", novaRows.length) +
     (novaRows.length ? buildRows(novaRows) : emptyRow) +
-    sectionHdr("RenovaÃ§Ãµes", renovRows.length) +
+    sectionHdr("Renovações", renovRows.length) +
     (renovRows.length ? buildRows(renovRows) : emptyRow);
 
   panel.style.display = "block";
   panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-// â”€â”€ INDICADORES â€” PROJEÃ‡ÃƒO DE PLANEAMENTO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── INDICADORES — PROJEÇÃO DE PLANEAMENTO ────────────────────────────────────
 
 function _buildProjDatasets(proj, nPoints) {
   const out = [];
@@ -2045,8 +2045,8 @@ function updateProjCalcs() {
   const equipaPct = parseFloat(document.getElementById("projObjEquipa")?.value);
   const calcI = document.getElementById("projObjInetumCalc");
   const calcE = document.getElementById("projObjEquipaCalc");
-  if (calcI) calcI.textContent = c && !isNaN(inetumPct) ? Math.round(inetumPct / 100 * c) : "â€”";
-  if (calcE) calcE.textContent = c && !isNaN(equipaPct) ? Math.round(equipaPct / 100 * c) : "â€”";
+  if (calcI) calcI.textContent = c && !isNaN(inetumPct) ? Math.round(inetumPct / 100 * c) : "—";
+  if (calcE) calcE.textContent = c && !isNaN(equipaPct) ? Math.round(equipaPct / 100 * c) : "—";
 }
 
 async function loadProjPlaneamento(team) {
@@ -2054,9 +2054,9 @@ async function loadProjPlaneamento(team) {
   const elPlan  = document.getElementById("projPlanPlan");
   const elTotal = document.getElementById("projPlaneamentoTotal");
   if (!elTotal) return;
-  if (elCert)  elCert.textContent  = "â€¦";
-  if (elPlan)  elPlan.textContent  = "â€¦";
-  elTotal.textContent = "â€¦";
+  if (elCert)  elCert.textContent  = "…";
+  if (elPlan)  elPlan.textContent  = "…";
+  elTotal.textContent = "…";
 
   const teamQ = team ? `&equipa=eq.${encodeURIComponent(team)}` : "";
   try {
@@ -2074,9 +2074,9 @@ async function loadProjPlaneamento(team) {
     if (elPlan)  elPlan.textContent  = planCount;
     elTotal.textContent = certCount + planCount;
   } catch (err) {
-    if (elCert)  elCert.textContent  = "â€”";
-    if (elPlan)  elPlan.textContent  = "â€”";
-    if (elTotal) elTotal.textContent = "â€”";
+    if (elCert)  elCert.textContent  = "—";
+    if (elPlan)  elPlan.textContent  = "—";
+    if (elTotal) elTotal.textContent = "—";
     console.error("Erro planeamento tile:", err);
   }
 }
@@ -2089,7 +2089,7 @@ function loadIndProjection(team) {
   if (!team) { section.style.display = "none"; return; }
 
   section.style.display = "";
-  if (subtitle) subtitle.textContent = `Objetivos e planeamento â€” ${team}`;
+  if (subtitle) subtitle.textContent = `Objetivos e planeamento — ${team}`;
 
   const saved = projLoad(team);
 
@@ -2143,7 +2143,7 @@ loadIndOverview();
 loadIndChart();
 loadIndNewCertsChart();
 
-// â”€â”€ NAVBAR ALERT BADGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── NAVBAR ALERT BADGE ────────────────────────────────────────────────────────
 
 function setNavAlertBadge(red, orange) {
   const link = document.querySelector('.navbar-links a[href*="alertas"]');
@@ -2155,11 +2155,11 @@ function setNavAlertBadge(red, orange) {
   badge.className = "nav-alert-badge";
   if (red > 0)    badge.classList.add("nav-alert-badge--red");
   else if (orange > 0) badge.classList.add("nav-alert-badge--orange");
-  badge.title = `${red} crÃ­tico(s), ${orange} urgente(s)`;
+  badge.title = `${red} crítico(s), ${orange} urgente(s)`;
   link.appendChild(badge);
 }
 
-// â”€â”€ HOME TOTALS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── HOME TOTALS ───────────────────────────────────────────────────────────────
 
 async function loadHomeTotals() {
   if (!document.getElementById("homeTotalCerts")) return;
@@ -2226,12 +2226,12 @@ async function loadHomeTotals() {
       });
     }
 
-    // GrÃ¡fico distribuiÃ§Ã£o por cÃ³digo
+    // Gráfico distribuição por código
     const chartCanvas = document.getElementById("homeCertChart");
     if (chartCanvas && resCodigos.ok) {
       const codRows = await resCodigos.json();
 
-      // Build codeâ†’name map (first occurrence wins) and count by code
+      // Build code→name map (first occurrence wins) and count by code
       const codCounts = {};
       const codNames  = {};
       codRows.forEach(r => {
@@ -2259,7 +2259,7 @@ async function loadHomeTotals() {
       const labels = main.map(([c]) => codNames[c] ? `${codNames[c]} (${c})` : c);
       const values = main.map(([, n]) => n);
 
-      // Gradient colours: interpolate pinkâ†’blue across bars
+      // Gradient colours: interpolate pink→blue across bars
       const pink = [233, 30, 140], blue = [0, 212, 255];
       const barColors = labels.map((_, i) => {
         const t = labels.length > 1 ? i / (labels.length - 1) : 0;
@@ -2285,7 +2285,7 @@ async function loadHomeTotals() {
             tooltip: {
               callbacks: {
                 title: ctx => ctx[0]?.label || "",
-                label: ctx => ` ${ctx.parsed.x} certificaÃ§Ãµes`
+                label: ctx => ` ${ctx.parsed.x} certificações`
               }
             }
           },
@@ -2311,7 +2311,7 @@ async function loadHomeTotals() {
       });
     }
 
-    // GrÃ¡fico distribuiÃ§Ã£o por site
+    // Gráfico distribuição por site
     const siteCanvas = document.getElementById("homeSiteChart");
     if (siteCanvas && resSites.ok) {
       const siteRows = await resSites.json();
@@ -2342,7 +2342,7 @@ async function loadHomeTotals() {
           maintainAspectRatio: false,
           plugins: {
             legend: { display: false },
-            tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} certificaÃ§Ãµes` } }
+            tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} certificações` } }
           },
           onClick: (_, elements) => {
             if (!elements.length) return;
@@ -2373,7 +2373,7 @@ async function loadHomeTotals() {
 
 loadHomeTotals();
 
-// â”€â”€ ALERT COUNTERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── ALERT COUNTERS ────────────────────────────────────────────────────────────
 
 let alertTeamFilter = "";
 
@@ -2415,7 +2415,7 @@ async function loadAlertCounters(teamFilter = "") {
     if (listEl && resList.ok) {
       const rows = await resList.json();
       if (!rows.length) {
-        listEl.innerHTML = `<p class="alert-list-empty">Sem certificaÃ§Ãµes a expirar nos prÃ³ximos 60 dias.</p>`;
+        listEl.innerHTML = `<p class="alert-list-empty">Sem certificações a expirar nos próximos 60 dias.</p>`;
         return;
       }
       listEl.innerHTML = rows.map(r => {
@@ -2426,22 +2426,28 @@ async function loadAlertCounters(teamFilter = "") {
         const href = `/Portal/certificacoes?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`;
         const teamsHref = `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(r.email)}`;
         return `<div class="alert-card-row">
-          <input type="checkbox" class="alert-card-checkbox" aria-label="Selecionar alerta" />
-          <div class="alert-card alert-card--${cls}" data-href="${escapeHtml(href)}" role="button" tabindex="0">
-            <span class="alert-card-badge alert-card-badge--${cls}">${label}</span>
-            <span class="alert-card-equipa">${escapeHtml(r.equipa || 'â€”')}</span>
-            <span class="alert-card-email">${escapeHtml(r.email)}</span>
-            <span class="alert-card-codigo">${escapeHtml(r.codigo_certificacao)}</span>
-            <span class="alert-card-data">${escapeHtml(r.data_expiracao || 'â€”')}</span>
+          <div class="alert-card-left">
+            <input type="checkbox" class="alert-card-checkbox" aria-label="Selecionar alerta" />
           </div>
-          <a class="alert-card-teams" href="${escapeHtml(teamsHref)}" target="_blank" rel="noopener" title="Contactar via Teams" aria-label="Contactar via Teams">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.625 5.625a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0ZM12 7.5a2.25 2.25 0 1 1-4.5 0A2.25 2.25 0 0 1 12 7.5Zm6 3a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.5 2.25h-3a3 3 0 0 0-1.03.183A4.5 4.5 0 0 1 16.5 16.5v.75H21a.75.75 0 0 0 .75-.75v-1.5a2.25 2.25 0 0 0-2.25-2.25Zm-8.25.75A3.75 3.75 0 0 0 7.5 17.25v.75h9v-.75A3.75 3.75 0 0 0 12.75 13.5h-1.5Z"/></svg>
-            Teams
-          </a>
+          <div class="alert-card-center">
+            <div class="alert-card alert-card--${cls}" data-href="${escapeHtml(href)}" role="button" tabindex="0">
+              <span class="alert-card-badge alert-card-badge--${cls}">${label}</span>
+              <span class="alert-card-equipa">${escapeHtml(r.equipa || '—')}</span>
+              <span class="alert-card-email">${escapeHtml(r.email)}</span>
+              <span class="alert-card-codigo">${escapeHtml(r.codigo_certificacao)}</span>
+              <span class="alert-card-data">${escapeHtml(r.data_expiracao || '—')}</span>
+            </div>
+          </div>
+          <div class="alert-card-right">
+            <a class="alert-card-teams" href="${escapeHtml(teamsHref)}" target="_blank" rel="noopener" title="Contactar via Teams" aria-label="Contactar via Teams">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.625 5.625a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0ZM12 7.5a2.25 2.25 0 1 1-4.5 0A2.25 2.25 0 0 1 12 7.5Zm6 3a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.5 2.25h-3a3 3 0 0 0-1.03.183A4.5 4.5 0 0 1 16.5 16.5v.75H21a.75.75 0 0 0 .75-.75v-1.5a2.25 2.25 0 0 0-2.25-2.25Zm-8.25.75A3.75 3.75 0 0 0 7.5 17.25v.75h9v-.75A3.75 3.75 0 0 0 12.75 13.5h-1.5Z"/></svg>
+              Teams
+            </a>
+          </div>
         </div>`;
       }).join('');
 
-      // Preparar HTML com botÃ£o de email
+      // Preparar HTML com botão de email
       const emailBtnHtml = `<div class="alert-email-btn-wrap" id="alertEmailBtnWrap">
         <button class="alert-email-btn" id="alertEmailBtn" type="button" aria-label="Enviar email para selecionados">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
@@ -2450,10 +2456,10 @@ async function loadAlertCounters(teamFilter = "") {
         </button>
       </div>`;
 
-      // Inserir botÃ£o DEPOIS da lista
+      // Inserir botão DEPOIS da lista
       listEl.innerHTML = listEl.innerHTML + emailBtnHtml;
 
-      // FunÃ§Ã£o para atualizar estado do botÃ£o
+      // Função para atualizar estado do botão
       function updateEmailBtnState() {
         const checked = listEl.querySelectorAll('.alert-card-checkbox:checked').length;
         const btnWrap = document.getElementById('alertEmailBtnWrap');
@@ -2474,7 +2480,7 @@ async function loadAlertCounters(teamFilter = "") {
         checkbox.addEventListener('change', updateEmailBtnState);
       });
 
-      // Listener para botÃ£o de email
+      // Listener para botão de email
       const emailBtn = document.getElementById('alertEmailBtn');
       if (emailBtn) {
         emailBtn.addEventListener('click', (e) => {
@@ -2491,18 +2497,15 @@ async function loadAlertCounters(teamFilter = "") {
           
           if (checked.length === 0) return;
 
-          // Construir body de email formatado
-          let emailBody = `OlÃ¡,\n\nCertificaÃ§Ãµes SAP - Stay Certified a expirar em breve:\n\n`;
-          checked.forEach((item, idx) => {
-            emailBody += `${idx + 1}. CertificaÃ§Ã£o: ${item.codigo}\n`;
-            emailBody += `   Data de ExpiraÃ§Ã£o: ${item.data}\n`;
-            emailBody += `   Contacto: ${item.email}\n\n`;
-          });
-          emailBody += `Por favor, proceder com a renovaÃ§Ã£o conforme necessÃ¡rio.\n\nInetum Portugal - CertificaÃ§Ãµes SAP`;
+          // Recolher emails dos destinatários
+          const recipients = checked.map(item => item.email).join(';');
+
+          // Construir body de email
+          let emailBody = `Olá ,\n\nChamamos a vossa atenção para a importância da renovação das certificações que possuem atualmente ativas, garantindo que se mantêm válidas e atualizadas.\n\nÉ essencial que assegurem a renovação atempada das vossas certificações, evitando qualquer interrupção na sua validade. Este cuidado é determinante para mantermos os nossos padrões de excelência e para continuarmos a responder com qualidade às exigências dos nossos clientes.\n\nPedimos que validem o estado das vossas certificações e avancem com os respetivos processos de renovação, caso necessitem de apoio ou tenham alguma dificuldade, estejam à vontade para entrar em contacto.\n\n###\n\nAgradecemos a vossa colaboração e compromisso.`;
 
           // Gerar mailto com Outlook
-          const subject = 'CertificaÃ§Ãµes SAP - Stay Certified';
-          const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+          const subject = 'Certificações SAP - Stay Certified';
+          const mailto = `mailto:${encodeURIComponent(recipients)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
           window.location.href = mailto;
         });
       }
@@ -2524,7 +2527,7 @@ async function loadAlertCounters(teamFilter = "") {
   }
 }
 
-// â”€â”€ PLAN ALERTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── PLAN ALERTS ───────────────────────────────────────────────────────────────
 
 async function loadPlanAlerts(teamFilter = "") {
   const elOverdue  = document.getElementById("planCountOverdue");
@@ -2574,29 +2577,37 @@ async function loadPlanAlerts(teamFilter = "") {
         ...nextRows.map(r =>    ({ r, cls: "green",   label: nextName })),
       ];
       if (!allCards.length) {
-        listEl.innerHTML = `<p class="alert-list-empty">Sem certificaÃ§Ãµes planeadas pendentes.</p>`;
+        listEl.innerHTML = `<p class="alert-list-empty">Sem certificações planeadas pendentes.</p>`;
         return;
       }
       listEl.innerHTML = allCards.map(({ r, cls, label }) => {
         const href = `/Portal/planeamento?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`;
         const teamsHref = `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(r.email)}`;
         return `<div class="alert-card-row">
-          <input type="checkbox" class="alert-card-checkbox" aria-label="Selecionar alerta" />
-          <div class="alert-card alert-card--${cls}" data-href="${escapeHtml(href)}" role="button" tabindex="0">
-            <span class="alert-card-badge alert-card-badge--${cls}">${escapeHtml(label)}</span>
-            <span class="alert-card-equipa">${escapeHtml(r.equipa || 'â€”')}</span>
-            <span class="alert-card-email">${escapeHtml(r.email)}</span>
-            <span class="alert-card-codigo">${escapeHtml(r.codigo_certificacao)}</span>
-            <span class="alert-card-data">${escapeHtml(r.mes_certificacao || 'â€”')}</span>
+          <div class="alert-card-left">
+            <input type="checkbox" class="alert-card-checkbox" aria-label="Selecionar alerta" />
           </div>
-          <a class="alert-card-teams" href="${escapeHtml(teamsHref)}" target="_blank" rel="noopener" title="Contactar via Teams" aria-label="Contactar via Teams">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.625 5.625a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0ZM12 7.5a2.25 2.25 0 1 1-4.5 0A2.25 2.25 0 0 1 12 7.5Zm6 3a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.5 2.25h-3a3 3 0 0 0-1.03.183A4.5 4.5 0 0 1 16.5 16.5v.75H21a.75.75 0 0 0 .75-.75v-1.5a2.25 2.25 0 0 0-2.25-2.25Zm-8.25.75A3.75 3.75 0 0 0 7.5 17.25v.75h9v-.75A3.75 3.75 0 0 0 12.75 13.5h-1.5Z"/></svg>
-            Teams
+          <div class="alert-card-center">
+            <div class="alert-card alert-card--${cls}" data-href="${escapeHtml(href)}" role="button" tabindex="0">
+              <span class="alert-card-badge alert-card-badge--${cls}">${escapeHtml(label)}</span>
+              <span class="alert-card-equipa">${escapeHtml(r.equipa || '—')}</span>
+              <span class="alert-card-email">${escapeHtml(r.email)}</span>
+              <span class="alert-card-codigo">${escapeHtml(r.codigo_certificacao)}</span>
+              <span class="alert-card-data">${escapeHtml(r.mes_certificacao || '—')}</span>
+            </div>
+          </div>
+          <div class="alert-card-right">
+            <a class="alert-card-teams" href="${escapeHtml(teamsHref)}" target="_blank" rel="noopener" title="Contactar via Teams" aria-label="Contactar via Teams">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.625 5.625a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0ZM12 7.5a2.25 2.25 0 1 1-4.5 0A2.25 2.25 0 0 1 12 7.5Zm6 3a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.5 2.25h-3a3 3 0 0 0-1.03.183A4.5 4.5 0 0 1 16.5 16.5v.75H21a.75.75 0 0 0 .75-.75v-1.5a2.25 2.25 0 0 0-2.25-2.25Zm-8.25.75A3.75 3.75 0 0 0 7.5 17.25v.75h9v-.75A3.75 3.75 0 0 0 12.75 13.5h-1.5Z"/></svg>
+              Teams
+            </a>
+          </div>
+        </div>`;
           </a>
         </div>`;
       }).join('');
 
-      // Preparar HTML com botÃ£o de email
+      // Preparar HTML com botão de email
       const emailBtnHtml = `<div class="alert-email-btn-wrap" id="planEmailBtnWrap">
         <button class="alert-email-btn" id="planEmailBtn" type="button" aria-label="Enviar email para selecionados">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
@@ -2605,10 +2616,10 @@ async function loadPlanAlerts(teamFilter = "") {
         </button>
       </div>`;
 
-      // Inserir botÃ£o DEPOIS da lista
+      // Inserir botão DEPOIS da lista
       listEl.innerHTML = listEl.innerHTML + emailBtnHtml;
 
-      // FunÃ§Ã£o para atualizar estado do botÃ£o
+      // Função para atualizar estado do botão
       function updatePlanEmailBtnState() {
         const checked = listEl.querySelectorAll('.alert-card-checkbox:checked').length;
         const btnWrap = document.getElementById('planEmailBtnWrap');
@@ -2629,7 +2640,7 @@ async function loadPlanAlerts(teamFilter = "") {
         checkbox.addEventListener('change', updatePlanEmailBtnState);
       });
 
-      // Listener para botÃ£o de email
+      // Listener para botão de email
       const planEmailBtn = document.getElementById('planEmailBtn');
       if (planEmailBtn) {
         planEmailBtn.addEventListener('click', (e) => {
@@ -2647,16 +2658,16 @@ async function loadPlanAlerts(teamFilter = "") {
           if (checked.length === 0) return;
 
           // Construir body de email formatado
-          let emailBody = `OlÃ¡,\n\nCertificaÃ§Ãµes SAP - Stay Certified planeadas:\n\n`;
+          let emailBody = `Olá,\n\nCertificações SAP - Stay Certified planeadas:\n\n`;
           checked.forEach((item, idx) => {
-            emailBody += `${idx + 1}. CertificaÃ§Ã£o: ${item.codigo}\n`;
-            emailBody += `   MÃªs de CertificaÃ§Ã£o: ${item.data}\n`;
+            emailBody += `${idx + 1}. Certificação: ${item.codigo}\n`;
+            emailBody += `   Mês de Certificação: ${item.data}\n`;
             emailBody += `   Contacto: ${item.email}\n\n`;
           });
-          emailBody += `Por favor, proceder conforme planeado.\n\nInetum Portugal - CertificaÃ§Ãµes SAP`;
+          emailBody += `Por favor, proceder conforme planeado.\n\nInetum Portugal - Certificações SAP`;
 
           // Gerar mailto com Outlook
-          const subject = 'CertificaÃ§Ãµes SAP - Stay Certified';
+          const subject = 'Certificações SAP - Stay Certified';
           const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
           window.location.href = mailto;
         });
@@ -2678,7 +2689,7 @@ async function loadPlanAlerts(teamFilter = "") {
   }
 }
 
-// â”€â”€ ALERT TEAM TILES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── ALERT TEAM TILES ─────────────────────────────────────────────────────────
 
 async function loadAlertTeams() {
   const container = document.getElementById("alertTeamTiles");
@@ -2743,4 +2754,3 @@ loadPlanAlerts();
     setNavAlertBadge(parseCR(r15), parseCR(r30));
   } catch(e) { /* silently fail */ }
 })();
-
