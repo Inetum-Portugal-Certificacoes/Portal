@@ -406,7 +406,10 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .kpi-danger strong { background: none; -webkit-text-fill-color: #ff6060; color: #ff6060; }
 /* ── ALERT CARD LIST ─────────────────────────────────── */
 .alert-card-list { display: flex; flex-direction: column; gap: 6px; margin-top: 20px; }
-.alert-card-row  { display: flex; align-items: center; gap: 10px; }
+.alert-card-row  { display: flex; align-items: center; gap: 10px; width: 100%; }
+.alert-card-left { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 24px; }
+.alert-card-center { display: flex; align-items: center; flex: 1; min-width: 0; }
+.alert-card-right { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .alert-list-empty { color: var(--text-muted); text-align: center; padding: 24px 0; font-size: .9rem; }
 
 /* Custom Checkbox */
@@ -414,7 +417,7 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
   appearance: none; -webkit-appearance: none; width: 20px; height: 20px;
   border: 2px solid rgba(233,30,140,.4); border-radius: 4px;
   background: transparent; cursor: pointer; transition: all .2s;
-  flex-shrink: 0;
+  flex-shrink: 0; margin: 0;
 }
 .alert-card-checkbox:hover {
   border-color: var(--pink); background: rgba(233,30,140,.1);
@@ -428,6 +431,7 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
   padding: 12px 18px; border-radius: var(--radius);
   background: var(--glass); border: 1px solid var(--glass-border);
   border-left: 4px solid transparent; cursor: pointer; transition: all .2s;
+  flex: 1; min-width: 0;
 }
 .alert-card:hover { background: var(--glass-hover); transform: translateX(4px); }
 .alert-card--danger  { border-left-color: #e53935; }
@@ -445,8 +449,7 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .alert-card-equipa { font-size: .78rem; color: var(--text-muted); white-space: nowrap; }
 .alert-card-email  { font-size: .88rem; font-weight: 500; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .alert-card-codigo { font-size: .78rem; font-weight: 600; color: var(--pink); font-family: monospace; white-space: nowrap; }
-.alert-card        { flex: 1; min-width: 0; }
-.alert-card-data   { font-size: .78rem; color: var(--text-muted); margin-left: auto; white-space: nowrap; }
+.alert-card-data   { font-size: .78rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
 .alert-card-teams {
   display: flex; align-items: center; justify-content: center; gap: 5px;
   align-self: stretch;
@@ -461,28 +464,37 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .alert-email-btn-wrap {
   display: none; margin-bottom: 14px; gap: 8px; align-items: center;
 }
-.alert-email-btn-wrap.active { display: flex; }
+.alert-email-btn-wrap.active { display: flex !important; animation: slideIn .25s ease-out; }
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
 .alert-email-btn {
-  display: flex; align-items: center; gap: 6px; padding: 10px 18px;
-  border-radius: var(--radius); border: 1px solid var(--pink);
-  background: linear-gradient(135deg,rgba(233,30,140,.15),rgba(0,212,255,.08));
+  display: flex; align-items: center; gap: 8px; padding: 11px 20px;
+  border-radius: var(--radius); border: 1.5px solid var(--pink);
+  background: linear-gradient(135deg, rgba(233,30,140,.15), rgba(0,212,255,.08));
   color: var(--pink); font-size: .85rem; font-weight: 600;
   text-transform: uppercase; letter-spacing: .04em;
   cursor: pointer; transition: all .25s; white-space: nowrap;
 }
 .alert-email-btn:hover {
-  background: linear-gradient(135deg,rgba(233,30,140,.25),rgba(0,212,255,.15));
-  border-color: var(--blue); color: var(--blue); transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0,212,255,.15);
+  background: linear-gradient(135deg, rgba(233,30,140,.25), rgba(0,212,255,.15));
+  border-color: var(--blue); color: var(--blue); transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,212,255,.2);
 }
-.alert-email-btn svg { width: 14px; height: 14px; }
+.alert-email-btn:active { transform: translateY(0); }
+.alert-email-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+.alert-email-btn-label { display: inline; }
 .alert-email-count {
-  display: inline-block; padding: 2px 8px; border-radius: 12px;
-  background: rgba(233,30,140,.2); color: var(--pink); font-size: .75rem;
-  font-weight: 700; margin-left: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 3px 10px; border-radius: 12px;
+  background: rgba(233,30,140,.25); color: #fff; font-size: .7rem;
+  font-weight: 800; margin-left: 2px; min-width: 24px;
 }
 
-.kpi-danger  { border-color: rgba(229,57,53,.35) !important; }
+/* ── ALERT CARD LIST ─────────────────────────────────── */
+.alert-card-list { display: flex; flex-direction: column; gap: 6px; margin-top: 20px; }
+.alert-card-row  { display: flex; align-items: center; gap: 10px; }
 .kpi-warning { border-color: rgba(251,140,0,.35) !important; }
 .kpi-caution { border-color: rgba(253,216,53,.3) !important; }
 .kpi-green   { border-color: rgba(0,200,83,.3) !important; }
