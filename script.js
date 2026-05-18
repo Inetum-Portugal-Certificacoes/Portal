@@ -2438,10 +2438,121 @@ async function loadAlertCounters(teamFilter = "") {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.625 5.625a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0ZM12 7.5a2.25 2.25 0 1 1-4.5 0A2.25 2.25 0 0 1 12 7.5Zm6 3a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.5 2.25h-3a3 3 0 0 0-1.03.183A4.5 4.5 0 0 1 16.5 16.5v.75H21a.75.75 0 0 0 .75-.75v-1.5a2.25 2.25 0 0 0-2.25-2.25Zm-8.25.75A3.75 3.75 0 0 0 7.5 17.25v.75h9v-.75A3.75 3.75 0 0 0 12.75 13.5h-1.5Z"/></svg>
             Teams
           </a>
+        <input type="checkbox" class="alert-card-checkbox" aria-label="Selecionar alerta" />
         </div>`;
       }).join('');
 
       listEl.addEventListener("click", e => {
+                // Preparar HTML com botão de email
+                const emailBtnHtml = `<div class="alert-email-btn-wrap" id="planEmailBtnWrap">
+                  <button class="alert-email-btn" id="planEmailBtn" type="button">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                    Enviar Email
+                    <span class="alert-email-count" id="planEmailCount">0</span>
+                  </button>
+                </div>`;
+
+                // Inserir antes da lista
+                const currentHTML = listEl.innerHTML;
+                listEl.innerHTML = emailBtnHtml + currentHTML;
+
+                // Função para atualizar estado do botão
+                function updatePlanEmailBtnState() {
+                  const checked = listEl.querySelectorAll('.alert-card-checkbox:checked').length;
+                  const btnWrap = document.getElementById('planEmailBtnWrap');
+                  const btnCount = document.getElementById('planEmailCount');
+                  if (btnWrap) {
+                    if (checked > 0) {
+                      btnWrap.classList.add('active');
+                      btnCount.textContent = checked;
+                    } else {
+                      btnWrap.classList.remove('active');
+                      btnCount.textContent = '0';
+                    }
+                  }
+                }
+
+                // Listeners para checkboxes
+                listEl.querySelectorAll('.alert-card-checkbox').forEach(checkbox => {
+                  checkbox.addEventListener('change', updatePlanEmailBtnState);
+                });
+
+                // Listener para botão de email
+                const planEmailBtn = document.getElementById('planEmailBtn');
+                if (planEmailBtn) {
+                  planEmailBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const checked = Array.from(listEl.querySelectorAll('.alert-card-checkbox:checked'))
+                      .map(cb => cb.closest('.alert-card-row'))
+                      .filter(Boolean)
+                      .map(row => ({
+                        email: row.querySelector('.alert-card-email')?.textContent || '?',
+                        codigo: row.querySelector('.alert-card-codigo')?.textContent || '?',
+                        equipa: row.querySelector('.alert-card-equipa')?.textContent || '?'
+                      }));
+                    console.log('Email seria enviado para (planeamento):', checked);
+                    // TODO: Implementar envio de email
+                  });
+                }
+              };
+
+              listEl.addEventListener("click", e => {
+                if (e.target.closest('.alert-email-btn') || e.target.closest('.alert-card-checkbox')) return;
+        // Preparar HTML com botão de email
+        const emailBtnHtml = `<div class="alert-email-btn-wrap" id="alertEmailBtnWrap">
+          <button class="alert-email-btn" id="alertEmailBtn" type="button">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            Enviar Email
+            <span class="alert-email-count" id="alertEmailCount">0</span>
+          </button>
+        </div>`;
+
+        // Inserir antes da lista
+        const currentHTML = listEl.innerHTML;
+        listEl.innerHTML = emailBtnHtml + currentHTML;
+
+        // Função para atualizar estado do botão
+        function updateEmailBtnState() {
+          const checked = listEl.querySelectorAll('.alert-card-checkbox:checked').length;
+          const btnWrap = document.getElementById('alertEmailBtnWrap');
+          const btnCount = document.getElementById('alertEmailCount');
+          if (btnWrap) {
+            if (checked > 0) {
+              btnWrap.classList.add('active');
+              btnCount.textContent = checked;
+            } else {
+              btnWrap.classList.remove('active');
+              btnCount.textContent = '0';
+            }
+          }
+        }
+
+        // Listeners para checkboxes
+        listEl.querySelectorAll('.alert-card-checkbox').forEach(checkbox => {
+          checkbox.addEventListener('change', updateEmailBtnState);
+        });
+
+        // Listener para botão de email
+        const emailBtn = document.getElementById('alertEmailBtn');
+        if (emailBtn) {
+          emailBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const checked = Array.from(listEl.querySelectorAll('.alert-card-checkbox:checked'))
+              .map(cb => cb.closest('.alert-card-row'))
+              .filter(Boolean)
+              .map(row => ({
+                email: row.querySelector('.alert-card-email')?.textContent || '?',
+                codigo: row.querySelector('.alert-card-codigo')?.textContent || '?',
+                equipa: row.querySelector('.alert-card-equipa')?.textContent || '?'
+              }));
+            console.log('Email seria enviado para:', checked);
+            // TODO: Implementar envio de email
+          });
+        }
+      };
+
+      listEl.addEventListener("click", e => {
+        if (e.target.closest('.alert-email-btn') || e.target.closest('.alert-card-checkbox')) return;
         const card = e.target.closest("[data-href]");
         if (card) window.location.href = card.dataset.href;
       });
@@ -2526,6 +2637,7 @@ async function loadPlanAlerts(teamFilter = "") {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.625 5.625a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0ZM12 7.5a2.25 2.25 0 1 1-4.5 0A2.25 2.25 0 0 1 12 7.5Zm6 3a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.5 2.25h-3a3 3 0 0 0-1.03.183A4.5 4.5 0 0 1 16.5 16.5v.75H21a.75.75 0 0 0 .75-.75v-1.5a2.25 2.25 0 0 0-2.25-2.25Zm-8.25.75A3.75 3.75 0 0 0 7.5 17.25v.75h9v-.75A3.75 3.75 0 0 0 12.75 13.5h-1.5Z"/></svg>
             Teams
           </a>
+        <input type="checkbox" class="alert-card-checkbox" aria-label="Selecionar alerta" />
         </div>`;
       }).join('');
 
