@@ -2603,8 +2603,6 @@ async function loadPlanAlerts(teamFilter = "") {
             </a>
           </div>
         </div>`;
-          </a>
-        </div>`;
       }).join('');
 
       // Preparar HTML com botão de email
