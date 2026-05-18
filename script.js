@@ -1842,14 +1842,18 @@ async function loadIndNewCertsChart(teamFilter = "") {
     }
 
     const firstMap = new Map();
+    const extraMap = new Map();
     for (const r of rows) {
       if (!r.data_certificacao || !r.email) continue;
       const emailKey = String(r.email).trim().toLowerCase();
       if (!emailKey) continue;
-      if (r.data_certificacao !== firstDateByEmail.get(emailKey)) continue;
       const certYM = r.data_certificacao.slice(0, 7);
-      if (certYM >= rangeStart && certYM <= rangeEnd)
+      if (!(certYM >= rangeStart && certYM <= rangeEnd)) continue;
+      if (r.data_certificacao === firstDateByEmail.get(emailKey)) {
         firstMap.set(certYM, (firstMap.get(certYM) || 0) + 1);
+      } else {
+        extraMap.set(certYM, (extraMap.get(certYM) || 0) + 1);
+      }
     }
 
     // Renovações por mês (year, MM):
@@ -1880,12 +1884,12 @@ async function loadIndNewCertsChart(teamFilter = "") {
       }
     }
 
-    const labels = [], newCerts = [], renovs = [], firstCerts = [];
+    const labels = [], extraCerts = [], renovs = [], firstCerts = [];
     for (let year = startYear; year <= endYear; year++) {
       for (let mIdx = 0; mIdx < 12; mIdx++) {
         const ym = `${year}-${String(mIdx + 1).padStart(2, "0")}`;
         labels.push(`${MES_ORDER[mIdx].slice(0, 3)} ${year}`);
-        newCerts.push(newMap.get(ym)   || null);
+        extraCerts.push(extraMap.get(ym) || null);
         renovs.push(renovMap.get(ym)   || null);
         firstCerts.push(firstMap.get(ym) || null);
       }
@@ -1898,8 +1902,8 @@ async function loadIndNewCertsChart(teamFilter = "") {
         labels,
         datasets: [
           {
-            label: "Novas Certificações",
-            data: newCerts,
+            label: "Certificações Extra",
+            data: extraCerts,
             backgroundColor: "rgba(233,30,140,.65)",
             borderColor: "#E91E8C",
             borderWidth: 1,
@@ -2020,8 +2024,11 @@ function showIndNewCertsDrill(ym, year, mIdx) {
     r.data_certificacao.slice(0, 7) === ym &&
     r.data_certificacao === firstDateByEmail.get(String(r.email).trim().toLowerCase())
   );
+  const extraRows = novaRows.filter(r =>
+    !(r.email && r.data_certificacao === firstDateByEmail.get(String(r.email).trim().toLowerCase()))
+  );
 
-  titleEl.textContent = `${mesNome} ${year} — Novas: ${novaRows.length} · Renovações: ${renovRows.length} · 1ª Certificação: ${firstRows.length}`;
+  titleEl.textContent = `${mesNome} ${year} — Certificações Extra: ${extraRows.length} · Renovações: ${renovRows.length} · 1ª Certificação: ${firstRows.length}`;
 
   const buildRows = rows => rows.map(r => {
     const certUrl = `/Portal/certificacoes?filter_email=${encodeURIComponent(r.email || "")}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao || "")}`;
@@ -2042,8 +2049,8 @@ function showIndNewCertsDrill(ym, year, mIdx) {
     `<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Sem registos</td></tr>`;
 
   tbody.innerHTML =
-    sectionHdr("Novas Certificações", novaRows.length) +
-    (novaRows.length ? buildRows(novaRows) : emptyRow) +
+    sectionHdr("Certificações Extra", extraRows.length) +
+    (extraRows.length ? buildRows(extraRows) : emptyRow) +
     sectionHdr("Renovações", renovRows.length) +
     (renovRows.length ? buildRows(renovRows) : emptyRow) +
     sectionHdr("1ª Certificação", firstRows.length) +
