@@ -462,7 +462,7 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 
 /* Alert Email Button */
 .alert-email-btn-wrap {
-  display: none; margin-bottom: 14px; gap: 8px; align-items: center;
+  display: none; margin-bottom: 14px; gap: 8px; align-items: center; margin-left: 34px;
 }
 .alert-email-btn-wrap.active { display: flex !important; animation: slideIn .25s ease-out; }
 @keyframes slideIn {
