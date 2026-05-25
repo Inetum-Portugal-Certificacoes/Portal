@@ -6,6 +6,14 @@ let initAttempts = 0;
 const MAX_INIT_ATTEMPTS = 15;
 const INIT_RETRY_DELAY = 300; // ms
 
+async function waitForSupabaseClient(timeoutMs = 8000) {
+  const start = Date.now();
+  while (!supabaseClient && Date.now() - start < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  return supabaseClient;
+}
+
 function initializeSupabaseClient() {
   initAttempts++;
   const logMsg = `[Auth] Attempt ${initAttempts}/${MAX_INIT_ATTEMPTS}`;
@@ -91,6 +99,7 @@ class AuthManager {
 
   async isUserAuthorized() {
     if (!this.session?.user?.email) return false;
+    await waitForSupabaseClient();
     if (!supabaseClient) {
       console.error('[Auth] ❌ supabaseClient não inicializado - não pode verificar autorização');
       return false;
@@ -111,9 +120,10 @@ class AuthManager {
 
   async requestOTP(email) {
     try {
+      await waitForSupabaseClient();
       if (!supabaseClient) {
         console.error('[Auth] ❌ supabaseClient não inicializado - não pode solicitar OTP');
-        throw new Error('Supabase client não inicializado. Recarrega a página.');
+        throw new Error('Sistema de autenticação ainda não ficou disponível. Tenta novamente em alguns segundos.');
       }
       
       console.log('[Auth] Iniciando requestOTP para:', email);
@@ -134,9 +144,10 @@ class AuthManager {
 
   async verifyOTP(email, token) {
     try {
+      await waitForSupabaseClient();
       if (!supabaseClient) {
         console.error('[Auth] ❌ supabaseClient não inicializado - não pode verificar OTP');
-        throw new Error('Supabase client não inicializado. Recarrega a página.');
+        throw new Error('Sistema de autenticação ainda não ficou disponível. Tenta novamente em alguns segundos.');
       }
       
       const { data, error } = await supabaseClient.auth.verifyOtp({
@@ -172,9 +183,13 @@ class AuthManager {
   }
 
   async logout() {
-    await supabaseClient.auth.signOut();
+    await waitForSupabaseClient(2000);
+    if (supabaseClient) {
+      await supabaseClient.auth.signOut();
+    }
     this.clearSession();
   }
 }
 
 const authManager = new AuthManager();
+window.authManager = authManager;

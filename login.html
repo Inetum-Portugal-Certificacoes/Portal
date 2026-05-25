@@ -83,10 +83,6 @@
       errEl.classList.add('hidden');
 
       try {
-        if (!window.authManager) {
-          throw new Error('Sistema de autenticação ainda a inicializar. Tenta novamente em 2 segundos.');
-        }
-
         console.log('Solicitando OTP para:', email);
         const result = await authManager.requestOTP(email);
         console.log('Resultado requestOTP:', result);
@@ -124,10 +120,6 @@
       errEl.classList.add('hidden');
 
       try {
-        if (!window.authManager) {
-          throw new Error('Sistema de autenticação ainda a inicializar. Tenta novamente em 2 segundos.');
-        }
-
         const result = await authManager.verifyOTP(currentEmail, otp);
         if (!result.success) throw new Error(result.error);
 
