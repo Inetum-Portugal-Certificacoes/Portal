@@ -97,7 +97,7 @@
 
                   <button id="adminCreateBtn" class="hero-cta admin-submit" type="submit">Criar acesso</button>
                 </form>
-                <p class="admin-help">Sem password, apenas atualiza a whitelist. Com password no servidor privado, também tenta criar conta Auth sem envio de email.</p>
+                <p class="admin-help">Sem password, apenas atualiza a whitelist. Com password, exige servidor privado e atualiza Auth + password_hash na BD (sem fallback silencioso).</p>
                 <p id="adminFeedback" class="admin-feedback"></p>
               </div>
 

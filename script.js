@@ -2717,6 +2717,11 @@ async function handleAdminCreateUser(e) {
     let whitelistUpdatedByApi = false;
     let passwordUpdatedByApi = false;
 
+    // If password is provided, creation must go through private API to persist password fields.
+    if (password && window.location.hostname.endsWith("github.io")) {
+      throw new Error("Para guardar password, usa o servidor privado (http://localhost:3000/admin com npm run start:private)");
+    }
+
     // If we are on private server and password is provided, try creating Auth user too.
     const canTryPrivateAuth = !window.location.hostname.endsWith("github.io") && Boolean(password);
     if (canTryPrivateAuth) {
@@ -2745,6 +2750,9 @@ async function handleAdminCreateUser(e) {
     }
 
     if (!whitelistUpdatedByApi) {
+      if (password) {
+        throw new Error("Password não foi atualizada porque o endpoint privado não respondeu com sucesso");
+      }
       // Fallback for static GitHub Pages context: whitelist update only.
       const { error: upsertErr } = await supabaseClient
         .from("authorized_emails")
