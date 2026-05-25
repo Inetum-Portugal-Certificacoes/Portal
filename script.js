@@ -2686,47 +2686,31 @@ async function handleAdminCreateUser(e) {
   if (!authState.isAdmin) return;
 
   const emailEl = document.getElementById("adminNewEmail");
-  const passEl = document.getElementById("adminNewPassword");
   const activeEl = document.getElementById("adminNewActive");
   const adminEl = document.getElementById("adminNewIsAdmin");
   const submitBtn = document.getElementById("adminCreateBtn");
-  if (!emailEl || !passEl || !activeEl || !adminEl) return;
+  if (!emailEl || !activeEl || !adminEl) return;
 
   const email = String(emailEl.value || "").trim().toLowerCase();
-  const password = String(passEl.value || "");
   const active = Boolean(activeEl.checked);
   const isAdmin = Boolean(adminEl.checked);
 
-  if (!email || !password) {
-    setAdminFeedback("Indica email e password.", "error");
-    return;
-  }
-  if (password.length < 8) {
-    setAdminFeedback("A password deve ter pelo menos 8 caracteres.", "error");
+  if (!email) {
+    setAdminFeedback("Indica um email válido.", "error");
     return;
   }
 
   if (submitBtn) submitBtn.disabled = true;
-  setAdminFeedback("A criar utilizador…", "info");
+  setAdminFeedback("A atualizar whitelist…", "info");
 
   try {
-    const tempAdminClient = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
-    });
-
-    const { error: signErr } = await tempAdminClient.auth.signUp({ email, password });
-    if (signErr && !/already|registered|exists/i.test(String(signErr.message || ""))) {
-      throw signErr;
-    }
-
     const { error: upsertErr } = await supabaseClient
       .from("authorized_emails")
       .upsert({ email, active, is_admin: isAdmin }, { onConflict: "email" });
     if (upsertErr) throw upsertErr;
 
-    setAdminFeedback(`Utilizador ${email} criado/atualizado com sucesso.`, "success");
+    setAdminFeedback(`Whitelist atualizada para ${email}.`, "success");
     emailEl.value = "";
-    passEl.value = "";
     activeEl.checked = true;
     adminEl.checked = false;
     await loadAdminUsers();
