@@ -2685,6 +2685,12 @@ async function handleAdminCreateUser(e) {
   e.preventDefault();
   if (!authState.isAdmin) return;
 
+  // User creation requires the private backend endpoint (/api/admin/users).
+  if (window.location.hostname.endsWith('github.io')) {
+    setAdminFeedback("Criação de utilizadores disponível apenas no servidor privado. Abre em http://localhost:3000/admin após iniciar npm run start:private.", "error");
+    return;
+  }
+
   const emailEl = document.getElementById("adminNewEmail");
   const passEl = document.getElementById("adminNewPassword");
   const activeEl = document.getElementById("adminNewActive");
@@ -2734,7 +2740,7 @@ async function handleAdminCreateUser(e) {
     await loadAdminUsers();
   } catch (err) {
     console.error("Erro a criar utilizador:", err);
-    setAdminFeedback(`Erro: ${err.message || "não foi possível criar utilizador."} Usa o servidor privado (npm run start:private).`, "error");
+    setAdminFeedback(`Erro: ${err.message || "não foi possível criar utilizador."}`, "error");
   } finally {
     if (submitBtn) submitBtn.disabled = false;
   }
