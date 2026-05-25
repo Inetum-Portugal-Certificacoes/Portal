@@ -376,19 +376,20 @@ tr.row-dirty td:first-child { border-left: 2px solid rgba(233,30,140,0.5); }
 .ranking-list {
   list-style: none;
   margin: 0;
-  padding: 0;
-  max-height: 420px;
+  padding: 0 10px 0 0;
+  max-height: 520px;
   overflow-y: auto;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: stable both-edges;
+  box-sizing: border-box;
 }
-.ranking-list li { display: flex; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--glass-border); }
+.ranking-list li { display: flex; align-items: center; gap: 16px; padding: 14px 8px 14px 0; border-bottom: 1px solid var(--glass-border); }
 .ranking-list li:last-child { border-bottom: none; }
 .ranking-pos { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: .85rem; flex-shrink: 0; background: var(--glass); border: 1px solid var(--glass-border); color: var(--text-muted); }
 .ranking-pos.gold   { background: linear-gradient(135deg,#f5a623,#f7c94e); color:#0f1923; border-color:#f5a623; }
 .ranking-pos.silver { background: linear-gradient(135deg,#9aa5b4,#c8d0d8); color:#0f1923; border-color:#9aa5b4; }
 .ranking-pos.bronze { background: linear-gradient(135deg,#cd7f32,#e8a96b); color:#0f1923; border-color:#cd7f32; }
 .ranking-email { flex: 1; font-size: .92rem; color: var(--text); }
-.ranking-count { font-size: 1.3rem; font-weight: 800; background: linear-gradient(135deg,var(--pink),var(--blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.ranking-count { min-width: 44px; text-align: right; font-size: 1.3rem; font-weight: 800; background: linear-gradient(135deg,var(--pink),var(--blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 .ranking-loading { color: var(--text-muted); font-size: .9rem; padding: 16px 0; }
 .chart-wrap { }
 .chart-wrap-doughnut { display: flex; justify-content: center; align-items: center; height: 360px; }
