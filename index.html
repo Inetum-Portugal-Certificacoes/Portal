@@ -13,14 +13,14 @@
     <div class="scroll-progress" id="scrollProgress"></div>
     <nav class="navbar" id="navbar">
       <div class="container">
-        <a href="/Portal/"><img class="navbar-logo" src="/Portal/assets/inetum-logo.svg" alt="Inetum" /></a>
+        <a href="index.html"><img class="navbar-logo" src="assets/inetum-logo.svg" alt="Inetum" /></a>
         <div class="navbar-links" id="navLinks">
-          <a class="active" href="/Portal/">Home</a>
-          <a href="/Portal/certificacoes">Certificações</a>
-          <a href="/Portal/planeamento">Planeamento</a>
-          <a href="/Portal/indicadores">Indicadores</a>
-          <a href="/Portal/alertas">Alertas</a>
-          <a id="loginBtn" href="/Portal/login.html" style="color: #00d4ff; font-weight: 600;">Entrar</a>
+          <a class="active" href="index.html">Home</a>
+          <a href="certificacoes.html">Certificações</a>
+          <a href="planeamento.html">Planeamento</a>
+          <a href="indicadores.html">Indicadores</a>
+          <a href="alertas.html">Alertas</a>
+          <a id="loginBtn" href="login.html" style="color: #00d4ff; font-weight: 600;">Entrar</a>
           <a id="logoutBtn" href="#" onclick="logoutUser(event)" style="color: #ff6b6b; font-weight: 600; display: none;">Sair</a>
         </div>
         <button class="hamburger" id="hamburger" aria-label="Abrir menu">
@@ -43,7 +43,7 @@
         <span class="badge-label">Driving Digital Impact</span>
         <h1>Gestão de Certificações<br/>Inetum Portugal</h1>
         <p class="hero-sub">Portal interno para acompanhamento e gestão ninja das Certificações SAP</p>
-        <a class="hero-cta" href="/Portal/certificacoes">Ver Certificações →</a>
+        <a class="hero-cta" href="certificacoes.html">Ver Certificações →</a>
       </div>
     </section>
 
@@ -67,24 +67,24 @@
             <p>Acede rapidamente a cada secção do portal de certificações</p>
           </div>
           <div class="home-quicklinks">
-            <a class="tile tile-alerts" href="/Portal/alertas">
+            <a class="tile tile-alerts" href="alertas.html">
               <span>Alertas</span>
               <div class="tile-alert-counts">
                 <span class="tile-alert-red"><strong id="homeAlertRed">—</strong> crítico</span>
                 <span class="tile-alert-orange"><strong id="homeAlertOrange">—</strong> urgente</span>
               </div>
             </a>
-            <a class="tile" href="/Portal/certificacoes">
+            <a class="tile" href="certificacoes.html">
               <span>Certificações</span>
               <strong id="homeTotalCerts">—</strong>
               <em class="tile-sub">válidas</em>
             </a>
-            <a class="tile" href="/Portal/planeamento">
+            <a class="tile" href="planeamento.html">
               <span>Planeamento</span>
               <strong id="homeTotalPlan">—</strong>
               <em class="tile-sub">novas certificações</em>
             </a>
-            <a class="tile" href="/Portal/indicadores">
+            <a class="tile" href="indicadores.html">
               <span>Indicadores</span>
               <em class="tile-sub tile-sub-desc">Métricas e evolução<br/>por equipa</em>
             </a>
@@ -134,7 +134,7 @@
     <footer class="footer">
       <div class="footer-inner">
         <div class="footer-brand">
-          <img class="footer-logo" src="/Portal/assets/inetum-logo.svg" alt="Inetum" />
+          <img class="footer-logo" src="assets/inetum-logo.svg" alt="Inetum" />
         </div>
         <p class="footer-copy">© 2026 Inetum Portugal. All rights reserved.</p>
       </div>
@@ -142,7 +142,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="/Portal/app-config.js"></script>
-    <script src="/Portal/script.js"></script>
+    <script src="app-config.js"></script>
+    <script src="script.js"></script>
   </body>
 </html>
