@@ -60,6 +60,7 @@
   </div>
 
   <script src="/Portal/config.js"></script>
+  <script src="/Portal/supabase-loader.js"></script>
 
   <script>
     const logDiv = document.getElementById('test-log');
@@ -182,7 +183,10 @@
       const checks = {
         config: window.__SUPABASE_CONFIG__ ? '✅ config.js' : '❌ config.js',
         supabase: typeof window.supabase !== 'undefined' ? '✅ window.supabase' : '❌ window.supabase',
-        client: window.supabaseClient ? '✅ window.supabaseClient' : '❌ window.supabaseClient'
+        client: window.supabaseClient ? '✅ window.supabaseClient' : '❌ window.supabaseClient',
+        loader: window.__SUPABASE_LOADER_DONE__
+          ? (window.__SUPABASE_LOADER_OK__ ? `✅ loader: ${window.__SUPABASE_LOADER_SOURCE__}` : '❌ loader: falhou em todas as fontes')
+          : '⏳ loader: em progresso'
       };
 
       let html = '';

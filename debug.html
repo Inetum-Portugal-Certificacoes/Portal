@@ -73,23 +73,7 @@
   </div>
 
   <script src="/Portal/config.js" onload="onScriptLoad('config.js')" onerror="onScriptError('config.js')"></script>
-  <script>
-    window.supabaseLoadAttempts = 0;
-    window.supabaseLoadTimeout = null;
-    function loadSupabaseWithFallback() {
-      const cdnUrls = ['https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', 'https://unpkg.com/@supabase/supabase-js@2', 'https://esm.sh/@supabase/supabase-js@2'];
-      const currentUrl = cdnUrls[window.supabaseLoadAttempts];
-      if (!currentUrl) { onScriptError('@supabase/supabase-js@2'); return; }
-      const script = document.createElement('script');
-      script.src = currentUrl;
-      script.async = true;
-      script.onload = () => { onScriptLoad('@supabase/supabase-js@2'); clearTimeout(window.supabaseLoadTimeout); };
-      script.onerror = () => { window.supabaseLoadAttempts++; clearTimeout(window.supabaseLoadTimeout); loadSupabaseWithFallback(); };
-      window.supabaseLoadTimeout = setTimeout(() => { window.supabaseLoadAttempts++; loadSupabaseWithFallback(); }, 5000);
-      document.head.appendChild(script);
-    }
-    loadSupabaseWithFallback();
-  </script>
+  <script src="/Portal/supabase-loader.js"></script>
   <script src="/Portal/auth.js" onload="onScriptLoad('auth.js')" onerror="onScriptError('auth.js')"></script>
 
   <script>
@@ -115,8 +99,8 @@
         <div class="status ${loadedScripts['config.js'] ? 'ok' : 'error'}">
           ${loadedScripts['config.js'] ? '✅' : '❌'} config.js
         </div>
-        <div class="status ${loadedScripts['@supabase/supabase-js@2'] ? 'ok' : 'error'}">
-          ${loadedScripts['@supabase/supabase-js@2'] ? '✅' : '❌'} @supabase/supabase-js@2
+        <div class="status ${loadedScripts['supabase-loader.js'] ? 'ok' : 'error'}">
+          ${loadedScripts['supabase-loader.js'] ? '✅' : '❌'} supabase-loader.js
         </div>
         <div class="status ${loadedScripts['auth.js'] ? 'ok' : 'error'}">
           ${loadedScripts['auth.js'] ? '✅' : '❌'} auth.js
@@ -195,6 +179,9 @@
       addLog(`window.supabaseClient: ${typeof window.supabaseClient === 'undefined' ? '❌ NÃO' : '✅ SIM'}`);
       addLog(`authManager: ${typeof authManager === 'undefined' ? '❌ NÃO' : '✅ SIM'}`);
       
+      loadedScripts['supabase-loader.js'] = true;
+      updateCDNMonitor();
+
       // Dar tempo para scripts carregarem e retentarem
       setTimeout(() => {
         checkConfig();
