@@ -15,6 +15,12 @@ const BASE_PATH = getBasePath();
 const LOGIN_PATH = `${BASE_PATH}/login.html`;
 const HOME_PATH = `${BASE_PATH}/`;
 
+function appPath(path) {
+  if (!path || typeof path !== 'string') return path;
+  if (!path.startsWith('/')) return path;
+  return `${BASE_PATH}${path}`;
+}
+
 const cfg = window.APP_CONFIG || {};
 if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY || !window.supabase?.createClient) {
   throw new Error('APP_CONFIG/Supabase client em falta. Verifica app-config.js e script CDN.');
@@ -33,7 +39,7 @@ function updateAuthUI() {
 }
 
 // Auth check - redireciona para login se não autenticado
-(async () => {
+const authReady = (async () => {
   // Se em página de login, skip
   if (window.location.pathname.endsWith('/login.html') || window.location.pathname.endsWith('/Portal/login.html')) {
     updateAuthUI();
@@ -67,6 +73,9 @@ function updateAuthUI() {
     supabaseAccessToken = token;
     authState.email = email;
     updateAuthUI();
+
+    // Some page loaders may run before auth is ready; refresh visible sections now.
+    reloadCurrentPageData();
   } catch (_err) {
     window.location.href = LOGIN_PATH;
   }
@@ -139,10 +148,26 @@ function saiuLabel(row) { return row.saiu ? "Sim" : ""; }
 function supabaseHeaders(extra = {}) {
   return {
     apikey: cfg.SUPABASE_ANON_KEY,
-    Authorization: `Bearer ${supabaseAccessToken || 'invalid'}`,
+    Authorization: `Bearer ${supabaseAccessToken || cfg.SUPABASE_ANON_KEY}`,
     "Content-Type": "application/json",
     ...extra
   };
+}
+
+function reloadCurrentPageData() {
+  if (!authState.email) return;
+  if (document.getElementById("stayTableBody")) loadStayCertifiedTable();
+  if (document.getElementById("planTableBody")) loadPlaneamentoTable();
+  if (document.getElementById("homeTotalCerts")) loadHomeTotals();
+  if (document.getElementById("alertCardList") || document.getElementById("planCardList")) {
+    loadAlertCounters(alertTeamFilter || "");
+    loadPlanAlerts(alertTeamFilter || "");
+  }
+  if (document.getElementById("indEvolutionChart") || document.getElementById("indTotalCerts")) {
+    loadIndOverview(indTeamFilter || "");
+    loadIndChart(indTeamFilter || "");
+    loadIndNewCertsChart(indTeamFilter || "");
+  }
 }
 
 async function loadStayCertifiedTable() {
@@ -2111,7 +2136,7 @@ function showIndNewCertsDrill(ym, year, mIdx) {
   titleEl.textContent = `${mesNome} ${year} — 1ª Certificação: ${firstRows.length} · Certificações Extra: ${extraRows.length} · Renovações: ${renovRows.length}`;
 
   const buildRows = rows => rows.map(r => {
-    const certUrl = `/Portal/certificacoes?filter_email=${encodeURIComponent(r.email || "")}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao || "")}`;
+    const certUrl = appPath(`/Portal/certificacoes?filter_email=${encodeURIComponent(r.email || "")}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao || "")}`);
     return `<tr>
       <td>${escapeHtml(r.equipa || "")}</td>
       <td>${escapeHtml(r.email || "")}</td>
@@ -2376,7 +2401,7 @@ async function loadHomeTotals() {
         const li = e.target.closest("[data-drill-email]");
         if (li) {
           sessionStorage.setItem("drillScrollTo", "homeRanking");
-          window.location.href = `/Portal/certificacoes?filter_email=${encodeURIComponent(li.dataset.drillEmail)}`;
+          window.location.href = appPath(`/Portal/certificacoes?filter_email=${encodeURIComponent(li.dataset.drillEmail)}`);
         }
       });
     }
@@ -2449,7 +2474,7 @@ async function loadHomeTotals() {
             const code = certCodes[elements[0].index];
             if (code && code !== "Outros") {
               sessionStorage.setItem("drillScrollTo", "homeCertChart");
-              window.location.href = `/Portal/certificacoes?filter_codigo_certificacao=${encodeURIComponent(code)}`;
+              window.location.href = appPath(`/Portal/certificacoes?filter_codigo_certificacao=${encodeURIComponent(code)}`);
             }
           },
           scales: {
@@ -2504,7 +2529,7 @@ async function loadHomeTotals() {
             const site = siteLabels[elements[0].index];
             if (site) {
               sessionStorage.setItem("drillScrollTo", "homeSiteChart");
-              window.location.href = `/Portal/certificacoes?filter_site=${encodeURIComponent(site)}`;
+              window.location.href = appPath(`/Portal/certificacoes?filter_site=${encodeURIComponent(site)}`);
             }
           },
           scales: {
@@ -2531,6 +2556,7 @@ loadHomeTotals();
 // ── ALERT COUNTERS ────────────────────────────────────────────────────────────
 
 let alertTeamFilter = "";
+let _alertTeamsBound = false;
 
 async function loadAlertCounters(teamFilter = "") {
   const el15   = document.getElementById("alertCount15");
@@ -2578,7 +2604,7 @@ async function loadAlertCounters(teamFilter = "") {
         if (r.data_expiracao <= in15)      { cls = "danger";  label = "15 dias"; }
         else if (r.data_expiracao <= in30) { cls = "warning"; label = "30 dias"; }
         else                               { cls = "green";   label = "60 dias"; }
-        const href = `/Portal/certificacoes?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`;
+        const href = appPath(`/Portal/certificacoes?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`);
         const teamsHref = `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(r.email)}`;
         return `<div class="alert-card-row">
           <input type="checkbox" class="alert-card-checkbox" aria-label="Selecionar alerta" />
@@ -2733,7 +2759,7 @@ async function loadPlanAlerts(teamFilter = "") {
         return;
       }
       listEl.innerHTML = allCards.map(({ r, cls, label }) => {
-        const href = `/Portal/planeamento?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`;
+        const href = appPath(`/Portal/planeamento?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`);
         const teamsHref = `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(r.email)}`;
         return `<div class="alert-card-row">
           <input type="checkbox" class="alert-card-checkbox" aria-label="Selecionar alerta" />
@@ -2864,15 +2890,18 @@ async function loadAlertTeams() {
     };
     render();
 
-    container.addEventListener("click", e => {
-      const tile = e.target.closest("[data-alert-team]");
-      if (!tile) return;
-      const team = tile.dataset.alertTeam;
-      alertTeamFilter = alertTeamFilter === team ? "" : team;
-      render();
-      loadAlertCounters(alertTeamFilter);
-      loadPlanAlerts(alertTeamFilter);
-    });
+    if (!_alertTeamsBound) {
+      container.addEventListener("click", e => {
+        const tile = e.target.closest("[data-alert-team]");
+        if (!tile) return;
+        const team = tile.dataset.alertTeam;
+        alertTeamFilter = alertTeamFilter === team ? "" : team;
+        render();
+        loadAlertCounters(alertTeamFilter);
+        loadPlanAlerts(alertTeamFilter);
+      });
+      _alertTeamsBound = true;
+    }
   } catch (err) {
     console.error("Erro ao carregar equipas de alertas:", err);
   }
