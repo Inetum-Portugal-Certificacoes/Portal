@@ -82,6 +82,9 @@
                   <label for="adminNewEmail">Email</label>
                   <input id="adminNewEmail" type="email" autocomplete="email" required />
 
+                  <label for="adminNewPassword">Password inicial</label>
+                  <input id="adminNewPassword" type="password" minlength="8" autocomplete="new-password" required />
+
                   <label class="admin-check-row">
                     <input id="adminNewActive" type="checkbox" checked />
                     <span>Conta ativa na whitelist</span>
@@ -94,6 +97,7 @@
 
                   <button id="adminCreateBtn" class="hero-cta admin-submit" type="submit">Criar acesso</button>
                 </form>
+                <p class="admin-help">A criação com password inicial é feita sem envio de email, via endpoint admin privado.</p>
                 <p id="adminFeedback" class="admin-feedback"></p>
               </div>
 

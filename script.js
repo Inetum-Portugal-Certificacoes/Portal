@@ -2686,37 +2686,55 @@ async function handleAdminCreateUser(e) {
   if (!authState.isAdmin) return;
 
   const emailEl = document.getElementById("adminNewEmail");
+  const passEl = document.getElementById("adminNewPassword");
   const activeEl = document.getElementById("adminNewActive");
   const adminEl = document.getElementById("adminNewIsAdmin");
   const submitBtn = document.getElementById("adminCreateBtn");
-  if (!emailEl || !activeEl || !adminEl) return;
+  if (!emailEl || !passEl || !activeEl || !adminEl) return;
 
   const email = String(emailEl.value || "").trim().toLowerCase();
+  const password = String(passEl.value || "");
   const active = Boolean(activeEl.checked);
   const isAdmin = Boolean(adminEl.checked);
 
-  if (!email) {
-    setAdminFeedback("Indica um email válido.", "error");
+  if (!email || !password) {
+    setAdminFeedback("Indica email e password.", "error");
+    return;
+  }
+  if (password.length < 8) {
+    setAdminFeedback("A password deve ter pelo menos 8 caracteres.", "error");
     return;
   }
 
   if (submitBtn) submitBtn.disabled = true;
-  setAdminFeedback("A atualizar whitelist…", "info");
+  setAdminFeedback("A criar utilizador…", "info");
 
   try {
-    const { error: upsertErr } = await supabaseClient
-      .from("authorized_emails")
-      .upsert({ email, active, is_admin: isAdmin }, { onConflict: "email" });
-    if (upsertErr) throw upsertErr;
+    const res = await fetch("/api/admin/users", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(supabaseAccessToken ? { Authorization: `Bearer ${supabaseAccessToken}` } : {})
+      },
+      body: JSON.stringify({ email, password, active, is_admin: isAdmin })
+    });
 
-    setAdminFeedback(`Whitelist atualizada para ${email}.`, "success");
+    let payload = null;
+    try { payload = await res.json(); } catch { payload = null; }
+    if (!res.ok) {
+      const msg = payload?.error || payload?.message || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+
+    setAdminFeedback(`Utilizador ${email} criado/atualizado com sucesso.`, "success");
     emailEl.value = "";
+    passEl.value = "";
     activeEl.checked = true;
     adminEl.checked = false;
     await loadAdminUsers();
   } catch (err) {
     console.error("Erro a criar utilizador:", err);
-    setAdminFeedback(`Erro: ${err.message || "não foi possível criar utilizador."}`, "error");
+    setAdminFeedback(`Erro: ${err.message || "não foi possível criar utilizador."} Usa o servidor privado (npm run start:private).`, "error");
   } finally {
     if (submitBtn) submitBtn.disabled = false;
   }
