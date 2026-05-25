@@ -17,7 +17,7 @@ function updateAuthUI() {
 // Auth check - redireciona para login se não autenticado
 (async () => {
   // Se em página de login, skip
-  if (window.location.pathname.endsWith('/login.html') || window.location.pathname.endsWith('/login')) {
+  if (window.location.pathname.endsWith('/login.html') || window.location.pathname.endsWith('/Portal/login.html')) {
     updateAuthUI();
     return;
   }
@@ -25,14 +25,14 @@ function updateAuthUI() {
   try {
     const meRes = await fetch('/api/auth/me', { credentials: 'include' });
     if (!meRes.ok) {
-      window.location.href = '/login';
+      window.location.href = '/Portal/login.html';
       return;
     }
     const me = await meRes.json();
     authState.email = String(me.email || '').toLowerCase();
     updateAuthUI();
   } catch (_err) {
-    window.location.href = '/login';
+    window.location.href = '/Portal/login.html';
   }
 })();
 
@@ -90,7 +90,7 @@ function escapeHtml(value) {
 async function logoutUser(e) {
   e?.preventDefault();
   await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-  window.location.href = '/login';
+  window.location.href = '/Portal/login.html';
 }
 
 function calcExpirado(dateStr) {
