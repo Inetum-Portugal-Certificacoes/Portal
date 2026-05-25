@@ -35,12 +35,20 @@
     <h1>🔧 Diagnóstico Supabase</h1>
 
     <div class="section">
-      <div class="section-title">1. Configuração Carregada</div>
+      <div class="section-title">0. Monitorização de Carregamento de CDN</div>
+      <div id="cdn-monitor"></div>
+      <button onclick="testCDN()">Testar CDN Supabase</button>
+    </div>
       <div id="config-status"></div>
     </div>
 
     <div class="section">
-      <div class="section-title">2. Cliente Supabase</div>
+      <div class="section-title">2. Carregamento de Scripts</div>
+      <div id="script-status"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">3. Cliente Supabase</div>
       <div id="client-status"></div>
     </div>
 
@@ -64,11 +72,90 @@
     </div>
   </div>
 
-  <script src="/Portal/config.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/Portal/auth.js"></script>
+  <script src="/Portal/config.js" onload="onScriptLoad('config.js')" onerror="onScriptError('config.js')"></script>
+  <script>
+    window.supabaseLoadAttempts = 0;
+    window.supabaseLoadTimeout = null;
+    function loadSupabaseWithFallback() {
+      const cdnUrls = ['https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', 'https://unpkg.com/@supabase/supabase-js@2', 'https://esm.sh/@supabase/supabase-js@2'];
+      const currentUrl = cdnUrls[window.supabaseLoadAttempts];
+      if (!currentUrl) { onScriptError('@supabase/supabase-js@2'); return; }
+      const script = document.createElement('script');
+      script.src = currentUrl;
+      script.async = true;
+      script.onload = () => { onScriptLoad('@supabase/supabase-js@2'); clearTimeout(window.supabaseLoadTimeout); };
+      script.onerror = () => { window.supabaseLoadAttempts++; clearTimeout(window.supabaseLoadTimeout); loadSupabaseWithFallback(); };
+      window.supabaseLoadTimeout = setTimeout(() => { window.supabaseLoadAttempts++; loadSupabaseWithFallback(); }, 5000);
+      document.head.appendChild(script);
+    }
+    loadSupabaseWithFallback();
+  </script>
+  <script src="/Portal/auth.js" onload="onScriptLoad('auth.js')" onerror="onScriptError('auth.js')"></script>
 
   <script>
+    // Track script loading
+    const loadedScripts = {};
+    const scriptErrors = {};
+
+    function onScriptLoad(name) {
+      console.log(`✅ Script loaded: ${name}`);
+      loadedScripts[name] = true;
+      updateCDNMonitor();
+    }
+
+    function onScriptError(name) {
+      console.error(`❌ Script failed to load: ${name}`);
+      scriptErrors[name] = true;
+      updateCDNMonitor();
+    }
+
+    function updateCDNMonitor() {
+      const monitor = document.getElementById('cdn-monitor');
+      const html = `
+        <div class="status ${loadedScripts['config.js'] ? 'ok' : 'error'}">
+          ${loadedScripts['config.js'] ? '✅' : '❌'} config.js
+        </div>
+        <div class="status ${loadedScripts['@supabase/supabase-js@2'] ? 'ok' : 'error'}">
+          ${loadedScripts['@supabase/supabase-js@2'] ? '✅' : '❌'} @supabase/supabase-js@2
+        </div>
+        <div class="status ${loadedScripts['auth.js'] ? 'ok' : 'error'}">
+          ${loadedScripts['auth.js'] ? '✅' : '❌'} auth.js
+        </div>
+      `;
+      if (monitor) monitor.innerHTML = html;
+    }
+
+    async function testCDN() {
+      const monitor = document.getElementById('cdn-monitor');
+      monitor.innerHTML += '<div class="status info">⏳ A testar CDN...</div>';
+      addLog('Testando CDN Supabase...');
+
+      try {
+        const response = await fetch('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/package.json');
+        if (response.ok) {
+          addLog('✅ CDN Supabase acessível');
+          monitor.innerHTML += '<div class="status ok">✅ CDN Supabase responde</div>';
+        } else {
+          addLog(`❌ CDN respondeu com ${response.status}`, 'error');
+          monitor.innerHTML += `<div class="status error">❌ CDN respondeu com ${response.status}</div>`;
+        }
+      } catch (error) {
+        addLog(`❌ Erro ao testar CDN: ${error.message}`, 'error');
+        monitor.innerHTML += `<div class="status error">❌ Erro: ${error.message}</div>`;
+      }
+    }
+
+    // Check if Supabase is available globally
+    window.checkSupabaseGlobal = function() {
+      if (typeof window.supabase !== 'undefined') {
+        addLog('✅ window.supabase EXISTE globalmente');
+        return true;
+      } else {
+        addLog('❌ window.supabase NÃO existe globalmente', 'error');
+        return false;
+      }
+    };
+
     const logDiv = document.getElementById('debug-log');
     let logEntries = [];
 
@@ -100,6 +187,23 @@
       return div.innerHTML;
     }
 
+    // Inicializar quando página carrega
+    window.addEventListener('load', () => {
+      console.log('=== Debug Page Loaded ===');
+      addLog('=== Página de Debug Carregada ===');
+      addLog(`window.supabase: ${typeof window.supabase === 'undefined' ? '❌ NÃO' : '✅ SIM'}`);
+      addLog(`window.supabaseClient: ${typeof window.supabaseClient === 'undefined' ? '❌ NÃO' : '✅ SIM'}`);
+      addLog(`authManager: ${typeof authManager === 'undefined' ? '❌ NÃO' : '✅ SIM'}`);
+      
+      // Dar tempo para scripts carregarem e retentarem
+      setTimeout(() => {
+        checkConfig();
+        checkScripts();
+        checkClient();
+        checkEmailProvider();
+      }, 1000);
+    });
+
     // 1. Verificar configuração
     function checkConfig() {
       const configDiv = document.getElementById('config-status');
@@ -123,25 +227,61 @@
       addLog('✅ Config carregada com sucesso');
     }
 
-    // 2. Verificar cliente Supabase
+    // 2. Verificar carregamento de scripts
+    function checkScripts() {
+      const scriptDiv = document.getElementById('script-status');
+      addLog('A verificar carregamento de scripts...');
+      
+      const checks = [];
+      
+      // config.js
+      if (typeof window.__SUPABASE_CONFIG__ !== 'undefined') {
+        checks.push('<div class="status ok">✅ config.js carregado</div>');
+        addLog('✅ config.js carregado');
+      } else {
+        checks.push('<div class="status error">❌ config.js NÃO carregado</div>');
+        addLog('❌ config.js não carregado', 'error');
+      }
+      
+      // Supabase JS
+      if (typeof window.supabase !== 'undefined') {
+        checks.push('<div class="status ok">✅ @supabase/supabase-js@2 carregado</div>');
+        addLog('✅ @supabase/supabase-js@2 carregado');
+      } else {
+        checks.push('<div class="status error">❌ @supabase/supabase-js@2 NÃO carregado</div>');
+        addLog('❌ @supabase/supabase-js@2 não carregado - CDN error?', 'error');
+      }
+      
+      // auth.js
+      if (typeof authManager !== 'undefined') {
+        checks.push('<div class="status ok">✅ auth.js carregado (authManager existe)</div>');
+        addLog('✅ auth.js carregado e authManager inicializado');
+      } else {
+        checks.push('<div class="status error">❌ auth.js NÃO carregou ou authManager não inicializado</div>');
+        addLog('❌ authManager não disponível', 'error');
+      }
+      
+      scriptDiv.innerHTML = checks.join('');
+    }
+
+    // 3. Verificar cliente Supabase
     function checkClient() {
       const clientDiv = document.getElementById('client-status');
       addLog('A verificar cliente Supabase...');
       
-      if (typeof supabase === 'undefined') {
-        clientDiv.innerHTML = '<div class="status error">❌ Biblioteca @supabase/supabase-js não carregada</div>';
-        addLog('❌ Supabase JS não carregado', 'error');
-        return;
-      }
-
-      if (!window.supabaseClient) {
-        clientDiv.innerHTML = '<div class="status error">❌ supabaseClient não inicializado</div>';
-        addLog('❌ supabaseClient não inicializado', 'error');
-        return;
-      }
-
-      clientDiv.innerHTML = '<div class="status ok">✅ Cliente Supabase inicializado</div>';
-      addLog('✅ Cliente Supabase funcionando');
+      // Dar tempo para auth.js tentar inicializar com retry
+      setTimeout(() => {
+        if (typeof window.supabaseClient !== 'undefined' && window.supabaseClient) {
+          clientDiv.innerHTML = '<div class="status ok">✅ Cliente Supabase inicializado</div>';
+          addLog('✅ Cliente Supabase funcionando');
+        } else {
+          clientDiv.innerHTML = '<div class="status error">❌ supabaseClient ainda não disponível. Esperando retry...</div>';
+          addLog('⏳ Aguardando inicialização do cliente (sistema com retry ativo)', 'info');
+          
+          // Tentar novamente após delay
+          setTimeout(checkClient, 2000);
+        }
+      }, 1000);
     }
 
     // 3. Teste OTP Request
@@ -211,12 +351,7 @@
     }
 
     // Executar ao carregar
-    window.addEventListener('load', () => {
-      addLog('=== Página de Debug Carregada ===');
-      checkConfig();
-      checkClient();
-      checkEmailProvider();
-    });
+    // (já está no monitor de load acima)
   </script>
 </body>
 </html>

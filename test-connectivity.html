@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Teste de Conectividade Supabase</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Inter', monospace; 
+      background: #0f1e2e; 
+      color: #e0eaf4; 
+      padding: 20px;
+    }
+    .container { max-width: 1000px; margin: 0 auto; }
+    h1 { color: #00d4ff; margin-bottom: 30px; }
+    .test { background: rgba(30, 50, 70, 0.8); border: 1px solid rgba(100, 180, 255, 0.2); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .test-title { font-weight: 600; color: #00d4ff; margin-bottom: 10px; }
+    .result { padding: 10px; margin: 10px 0; border-radius: 6px; font-family: monospace; font-size: 13px; }
+    .ok { background: rgba(81, 207, 102, 0.2); color: #51cf66; border-left: 3px solid #51cf66; }
+    .error { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; border-left: 3px solid #ff6b6b; }
+    .info { background: rgba(0, 212, 255, 0.2); color: #00d4ff; border-left: 3px solid #00d4ff; }
+    button { background: #00d4ff; border: none; color: #0f1e2e; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; margin: 5px; }
+    .log { background: #000; padding: 15px; border-radius: 6px; font-size: 12px; max-height: 400px; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Teste de Conectividade Supabase</h1>
+
+    <div class="test">
+      <div class="test-title">1. Teste de Ping ao Supabase</div>
+      <button onclick="testPing()">Testar Ping</button>
+      <div id="ping-result"></div>
+    </div>
+
+    <div class="test">
+      <div class="test-title">2. Teste de CORS</div>
+      <button onclick="testCORS()">Testar CORS</button>
+      <div id="cors-result"></div>
+    </div>
+
+    <div class="test">
+      <div class="test-title">3. Teste de OTP Request (REST API)</div>
+      <input type="email" id="test-email" placeholder="seu.email@empresa.com" style="padding: 8px; border-radius: 4px; border: 1px solid #00d4ff; background: #0f1e2e; color: #e0eaf4; width: 250px;" />
+      <button onclick="testOTPRest()">Testar OTP via REST</button>
+      <div id="otp-rest-result"></div>
+    </div>
+
+    <div class="test">
+      <div class="test-title">4. Teste de Health Check</div>
+      <button onclick="testHealth()">Testar Health</button>
+      <div id="health-result"></div>
+    </div>
+
+    <div class="test">
+      <div class="test-title">5. Logs Detalhados</div>
+      <div class="log" id="test-log"></div>
+    </div>
+  </div>
+
+  <script src="/Portal/config.js"></script>
+
+  <script>
+    const logDiv = document.getElementById('test-log');
+    let logs = [];
+
+    function addLog(msg, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const line = `[${timestamp}] ${msg}`;
+      logs.unshift(line);
+      logDiv.innerHTML = logs.map(l => `<div>${escapeHtml(l)}</div>`).join('');
+      console.log(msg);
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function showResult(elementId, success, message) {
+      const el = document.getElementById(elementId);
+      const className = success ? 'ok' : 'error';
+      const icon = success ? '✅' : '❌';
+      el.innerHTML = `<div class="result ${className}">${icon} ${message}</div>`;
+      addLog(`${icon} ${message}`);
+    }
+
+    // 1. Ping Test
+    async function testPing() {
+      addLog('=== Iniciando Teste de Ping ===');
+      const resultEl = document.getElementById('ping-result');
+      resultEl.innerHTML = '<div class="result info">⏳ Testando...</div>';
+
+      const url = 'https://gsqnnfaxmxzzjlrwmfth.supabase.co/';
+      
+      try {
+        const start = Date.now();
+        const response = await fetch(url, { method: 'HEAD', mode: 'no-cors' });
+        const elapsed = Date.now() - start;
+        showResult('ping-result', true, `Supabase respondeu em ${elapsed}ms`);
+      } catch (error) {
+        showResult('ping-result', false, `Erro: ${error.message}`);
+      }
+    }
+
+    // 2. CORS Test
+    async function testCORS() {
+      addLog('=== Iniciando Teste de CORS ===');
+      const resultEl = document.getElementById('cors-result');
+      resultEl.innerHTML = '<div class="result info">⏳ Testando...</div>';
+
+      const url = 'https://gsqnnfaxmxzzjlrwmfth.supabase.co/auth/v1/health';
+      
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+        showResult('cors-result', response.ok, `CORS OK - Status: ${response.status}`);
+      } catch (error) {
+        showResult('cors-result', false, `Erro CORS: ${error.message}`);
+      }
+    }
+
+    // 3. OTP REST Test
+    async function testOTPRest() {
+      const email = document.getElementById('test-email').value.trim().toLowerCase();
+      if (!email) {
+        alert('Preenche o email');
+        return;
+      }
+
+      addLog(`=== Teste OTP REST para ${email} ===`);
+      const resultEl = document.getElementById('otp-rest-result');
+      resultEl.innerHTML = '<div class="result info">⏳ Enviando OTP...</div>';
+
+      if (!window.__SUPABASE_CONFIG__) {
+        showResult('otp-rest-result', false, 'config.js não carregado');
+        return;
+      }
+
+      const url = 'https://gsqnnfaxmxzzjlrwmfth.supabase.co/auth/v1/otp';
+      const anonKey = window.__SUPABASE_CONFIG__.SUPABASE_ANON_KEY;
+
+      try {
+        addLog(`URL: ${url}`);
+        addLog(`Email: ${email}`);
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': anonKey
+          },
+          body: JSON.stringify({
+            email: email,
+            data: {}
+          })
+        });
+
+        const data = await response.json();
+        addLog(`Response Status: ${response.status}`);
+        addLog(`Response Body: ${JSON.stringify(data)}`);
+
+        if (response.ok) {
+          showResult('otp-rest-result', true, '✅ OTP enviado! Verifica o email.');
+        } else {
+          showResult('otp-rest-result', false, `Erro ${response.status}: ${data.message || JSON.stringify(data)}`);
+        }
+      } catch (error) {
+        showResult('otp-rest-result', false, `Exceção: ${error.message}`);
+        addLog(`Stack: ${error.stack}`);
+      }
+    }
+
+    // 4. Health Check
+    async function testHealth() {
+      addLog('=== Health Check ===');
+      const resultEl = document.getElementById('health-result');
+      resultEl.innerHTML = '<div class="result info">⏳ Verificando saúde...</div>';
+
+      const checks = {
+        config: window.__SUPABASE_CONFIG__ ? '✅ config.js' : '❌ config.js',
+        supabase: typeof window.supabase !== 'undefined' ? '✅ window.supabase' : '❌ window.supabase',
+        client: window.supabaseClient ? '✅ window.supabaseClient' : '❌ window.supabaseClient'
+      };
+
+      let html = '';
+      for (const [key, value] of Object.entries(checks)) {
+        html += `<div class="result ${value.includes('✅') ? 'ok' : 'error'}">${value}</div>`;
+      }
+      resultEl.innerHTML = html;
+      addLog(JSON.stringify(checks));
+    }
+
+    // Startup
+    window.addEventListener('load', () => {
+      addLog('=== Página de Teste Carregada ===');
+      testHealth();
+    });
+  </script>
+</body>
+</html>

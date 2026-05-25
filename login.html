@@ -66,7 +66,55 @@
   </div>
 
   <script src="/Portal/config.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Carregar Supabase com fallback para múltiplos CDNs -->
+  <script>
+    window.supabaseLoadAttempts = 0;
+    window.supabaseLoadTimeout = null;
+    
+    function loadSupabaseWithFallback() {
+      console.log('[CDN] A tentar carregar Supabase JS com fallback...');
+      
+      const cdnUrls = [
+        'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+        'https://unpkg.com/@supabase/supabase-js@2',
+        'https://esm.sh/@supabase/supabase-js@2'
+      ];
+      
+      const currentUrl = cdnUrls[window.supabaseLoadAttempts];
+      if (!currentUrl) {
+        console.error('[CDN] ❌ Todos os CDNs falharam!');
+        return;
+      }
+      
+      console.log(`[CDN] Attempt ${window.supabaseLoadAttempts + 1}: Loading from ${currentUrl}`);
+      
+      const script = document.createElement('script');
+      script.src = currentUrl;
+      script.async = true;
+      script.onload = () => {
+        console.log('[CDN] ✅ Supabase carregado com sucesso de:', currentUrl);
+        clearTimeout(window.supabaseLoadTimeout);
+      };
+      script.onerror = () => {
+        console.warn(`[CDN] ❌ Falha ao carregar de ${currentUrl}, tentando próximo...`);
+        window.supabaseLoadAttempts++;
+        clearTimeout(window.supabaseLoadTimeout);
+        loadSupabaseWithFallback();
+      };
+      
+      // Timeout de 5 segundos por CDN
+      window.supabaseLoadTimeout = setTimeout(() => {
+        console.warn(`[CDN] ⏱️ Timeout ao carregar de ${currentUrl}, tentando próximo...`);
+        window.supabaseLoadAttempts++;
+        loadSupabaseWithFallback();
+      }, 5000);
+      
+      document.head.appendChild(script);
+    }
+    
+    // Carregar Supabase
+    loadSupabaseWithFallback();
+  </script>
   <script src="/Portal/auth.js"></script>
   <script>
     let currentEmail = '';

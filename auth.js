@@ -1,13 +1,71 @@
 // Autenticação OTP com Supabase
 // Configuração carregada de window.__SUPABASE_CONFIG__ (injetado no HTML)
-if (!window.__SUPABASE_CONFIG__) {
-  console.error('Supabase config not loaded. Please ensure config is injected before auth.js');
+
+let supabaseClient = null;
+let initAttempts = 0;
+const MAX_INIT_ATTEMPTS = 15;
+const INIT_RETRY_DELAY = 300; // ms
+
+function initializeSupabaseClient() {
+  initAttempts++;
+  const logMsg = `[Auth] Attempt ${initAttempts}/${MAX_INIT_ATTEMPTS}`;
+  console.log(`${logMsg}: Inicializando Supabase client...`);
+  
+  if (!window.__SUPABASE_CONFIG__) {
+    console.warn(`${logMsg}: config.js não carregado ainda. Tentando novamente...`);
+    if (initAttempts < MAX_INIT_ATTEMPTS) {
+      setTimeout(initializeSupabaseClient, INIT_RETRY_DELAY);
+    } else {
+      console.error(`${logMsg}: FALHA - config.js nunca chegou a carregar após ${MAX_INIT_ATTEMPTS} tentativas`);
+    }
+    return false;
+  }
+
+  if (typeof window.supabase === 'undefined') {
+    console.warn(`${logMsg}: window.supabase não disponível (CDN não carregou?). Tentando novamente...`);
+    if (initAttempts < MAX_INIT_ATTEMPTS) {
+      setTimeout(initializeSupabaseClient, INIT_RETRY_DELAY);
+    } else {
+      console.error(`${logMsg}: FALHA - @supabase/supabase-js nunca carregou após ${MAX_INIT_ATTEMPTS} tentativas. Problema com CDN?`);
+    }
+    return false;
+  }
+
+  try {
+    const SUPABASE_URL = window.__SUPABASE_CONFIG__.SUPABASE_URL;
+    const SUPABASE_ANON_KEY = window.__SUPABASE_CONFIG__.SUPABASE_ANON_KEY;
+
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      console.error(`${logMsg}: FALHA - config.js está vazio (missing URL or KEY)`);
+      return false;
+    }
+
+    console.log(`${logMsg}: Tentando criar cliente com URL:`, SUPABASE_URL.substring(0, 30) + '...');
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    if (!supabaseClient) {
+      console.error(`${logMsg}: createClient retornou null/undefined`);
+      if (initAttempts < MAX_INIT_ATTEMPTS) {
+        setTimeout(initializeSupabaseClient, INIT_RETRY_DELAY);
+      }
+      return false;
+    }
+
+    window.supabaseClient = supabaseClient;
+    console.log(`${logMsg}: ✅ SUCESSO - Cliente Supabase criado e exposto em window.supabaseClient`);
+    return true;
+  } catch (err) {
+    console.error(`${logMsg}: Exceção ao criar cliente:`, err.message, err.stack);
+    if (initAttempts < MAX_INIT_ATTEMPTS) {
+      setTimeout(initializeSupabaseClient, INIT_RETRY_DELAY);
+    }
+    return false;
+  }
 }
 
-const SUPABASE_URL = window.__SUPABASE_CONFIG__?.SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = window.__SUPABASE_CONFIG__?.SUPABASE_ANON_KEY || '';
-
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Começar imediatamente
+console.log('[Auth] Iniciando Supabase client initialization immediately...');
+initializeSupabaseClient();
 
 class AuthManager {
   constructor() {
@@ -33,6 +91,10 @@ class AuthManager {
 
   async isUserAuthorized() {
     if (!this.session?.user?.email) return false;
+    if (!supabaseClient) {
+      console.error('[Auth] ❌ supabaseClient não inicializado - não pode verificar autorização');
+      return false;
+    }
     try {
       const { data, error } = await supabaseClient
         .from('authorized_emails')
@@ -49,6 +111,11 @@ class AuthManager {
 
   async requestOTP(email) {
     try {
+      if (!supabaseClient) {
+        console.error('[Auth] ❌ supabaseClient não inicializado - não pode solicitar OTP');
+        throw new Error('Supabase client não inicializado. Recarrega a página.');
+      }
+      
       console.log('[Auth] Iniciando requestOTP para:', email);
       const { error } = await supabaseClient.auth.signInWithOtp({
         email: email.toLowerCase().trim()
@@ -67,6 +134,11 @@ class AuthManager {
 
   async verifyOTP(email, token) {
     try {
+      if (!supabaseClient) {
+        console.error('[Auth] ❌ supabaseClient não inicializado - não pode verificar OTP');
+        throw new Error('Supabase client não inicializado. Recarrega a página.');
+      }
+      
       const { data, error } = await supabaseClient.auth.verifyOtp({
         email: email.toLowerCase().trim(),
         token,
@@ -86,6 +158,7 @@ class AuthManager {
 
       return { success: true };
     } catch (err) {
+      console.error('[Auth] Erro ao verificar OTP:', err);
       return { success: false, error: err.message };
     }
   }
