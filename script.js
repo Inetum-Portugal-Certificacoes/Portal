@@ -37,7 +37,7 @@ function updateAuthUI() {
   
   if (loginBtn) loginBtn.style.display = isAuthenticated ? 'none' : 'inline-block';
   if (logoutBtn) logoutBtn.style.display = isAuthenticated ? 'inline-block' : 'none';
-  if (adminBtn) adminBtn.style.display = isAuthenticated && authState.isAdmin ? 'inline-block' : 'none';
+  if (adminBtn) adminBtn.style.display = isAuthenticated ? 'inline-block' : 'none';
 }
 
 // Auth check - redireciona para login se não autenticado
@@ -2841,18 +2841,21 @@ async function handleOwnPasswordChange(e) {
 function loadAdminPage() {
   const guard = document.getElementById("adminAccessGuard");
   const content = document.getElementById("adminContent");
+  const userMgmtSection = document.getElementById("adminUserManagementSection");
   const usersBody = document.getElementById("adminUsersBody");
-  if (!guard && !content && !usersBody) return;
+  if (!guard && !content && !usersBody && !userMgmtSection) return;
 
-  if (!authState.isAdmin) {
-    if (guard) guard.style.display = "";
-    if (content) content.style.display = "none";
+  if (content) content.style.display = "";
+
+  if (authState.isAdmin) {
+    if (guard) guard.style.display = "none";
+    if (userMgmtSection) userMgmtSection.style.display = "";
+    loadAdminUsers();
     return;
   }
 
-  if (guard) guard.style.display = "none";
-  if (content) content.style.display = "";
-  loadAdminUsers();
+  if (guard) guard.style.display = "";
+  if (userMgmtSection) userMgmtSection.style.display = "none";
 }
 
 const adminCreateForm = document.getElementById("adminCreateUserForm");
