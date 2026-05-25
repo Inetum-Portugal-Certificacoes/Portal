@@ -2714,6 +2714,8 @@ async function handleAdminCreateUser(e) {
   try {
     let authCreated = false;
     let authCreationWarning = "";
+    let whitelistUpdatedByApi = false;
+    let passwordUpdatedByApi = false;
 
     // If we are on private server and password is provided, try creating Auth user too.
     const canTryPrivateAuth = !window.location.hostname.endsWith("github.io") && Boolean(password);
@@ -2731,7 +2733,9 @@ async function handleAdminCreateUser(e) {
         let payload = null;
         try { payload = await res.json(); } catch { payload = null; }
         if (res.ok) {
-          authCreated = true;
+          authCreated = Boolean(payload?.auth_created);
+          whitelistUpdatedByApi = Boolean(payload?.whitelist_updated);
+          passwordUpdatedByApi = Boolean(payload?.password_hash_updated);
         } else {
           authCreationWarning = payload?.error || payload?.message || `HTTP ${res.status}`;
         }
@@ -2740,13 +2744,17 @@ async function handleAdminCreateUser(e) {
       }
     }
 
-    // Always ensure whitelist update, even if private API is unavailable.
-    const { error: upsertErr } = await supabaseClient
-      .from("authorized_emails")
-      .upsert({ email, active, is_admin: isAdmin }, { onConflict: "email" });
-    if (upsertErr) throw upsertErr;
+    if (!whitelistUpdatedByApi) {
+      // Fallback for static GitHub Pages context: whitelist update only.
+      const { error: upsertErr } = await supabaseClient
+        .from("authorized_emails")
+        .upsert({ email, active, is_admin: isAdmin }, { onConflict: "email" });
+      if (upsertErr) throw upsertErr;
+    }
 
-    if (authCreated) {
+    if (authCreated && passwordUpdatedByApi) {
+      setAdminFeedback(`Utilizador ${email} criado no Auth e password atualizada na whitelist.`, "success");
+    } else if (authCreated) {
       setAdminFeedback(`Utilizador ${email} criado no Auth e whitelist atualizada.`, "success");
     } else if (authCreationWarning) {
       setAdminFeedback(`Whitelist atualizada para ${email}. Nota: conta Auth não foi criada (${authCreationWarning}).`, "info");
