@@ -2,7 +2,7 @@
 const _initSearch = window.location.search;
 if (_initSearch) history.replaceState(null, "", window.location.pathname);
 
-const authState = { email: null };
+const authState = { email: null, isAdmin: false };
 let supabaseAccessToken = null;
 
 function getBasePath() {
@@ -32,10 +32,12 @@ const supabaseClient = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABA
 function updateAuthUI() {
   const loginBtn = document.getElementById('loginBtn');
   const logoutBtn = document.getElementById('logoutBtn');
+  const adminBtn = document.getElementById('adminBtn');
   const isAuthenticated = Boolean(authState.email);
   
   if (loginBtn) loginBtn.style.display = isAuthenticated ? 'none' : 'inline-block';
   if (logoutBtn) logoutBtn.style.display = isAuthenticated ? 'inline-block' : 'none';
+  if (adminBtn) adminBtn.style.display = isAuthenticated && authState.isAdmin ? 'inline-block' : 'none';
 }
 
 // Auth check - redireciona para login se não autenticado
@@ -59,7 +61,7 @@ const authReady = (async () => {
 
     const { data: allowedRows, error: allowErr } = await supabaseClient
       .from('authorized_emails')
-      .select('email,active')
+      .select('*')
       .eq('email', email)
       .eq('active', true)
       .limit(1);
@@ -72,6 +74,7 @@ const authReady = (async () => {
 
     supabaseAccessToken = token;
     authState.email = email;
+    authState.isAdmin = Boolean(allowedRows?.[0]?.is_admin);
     updateAuthUI();
 
     // Some page loaders may run before auth is ready; refresh visible sections now.
@@ -135,6 +138,10 @@ function escapeHtml(value) {
 async function logoutUser(e) {
   e?.preventDefault();
   await supabaseClient.auth.signOut();
+  authState.email = null;
+  authState.isAdmin = false;
+  supabaseAccessToken = null;
+  updateAuthUI();
   window.location.href = LOGIN_PATH;
 }
 
@@ -159,11 +166,16 @@ function reloadCurrentPageData() {
   if (document.getElementById("stayTableBody")) loadStayCertifiedTable();
   if (document.getElementById("planTableBody")) loadPlaneamentoTable();
   if (document.getElementById("homeTotalCerts")) loadHomeTotals();
+  if (document.getElementById("adminUsersBody") || document.getElementById("changePasswordForm")) {
+    loadAdminPage();
+  }
   if (document.getElementById("alertCardList") || document.getElementById("planCardList")) {
+    loadAlertTeams();
     loadAlertCounters(alertTeamFilter || "");
     loadPlanAlerts(alertTeamFilter || "");
   }
   if (document.getElementById("indEvolutionChart") || document.getElementById("indTotalCerts")) {
+    loadIndTeams();
     loadIndOverview(indTeamFilter || "");
     loadIndChart(indTeamFilter || "");
     loadIndNewCertsChart(indTeamFilter || "");
@@ -1684,6 +1696,7 @@ let _indEvolutionChart = null;
 let _indNewCertsChart  = null;
 let _indNewCertsRows   = [];   // cached for drilldown
 let _indNewCertsStartYear = new Date().getFullYear() - 1;
+let _indTeamsBound = false;
 
 async function loadIndOverview(teamFilter = "") {
   const elCerts    = document.getElementById("indTotalCerts");
@@ -1733,6 +1746,8 @@ async function loadIndTeams() {
       fetch(`${API_BASE_URL}/stay_certified?select=equipa&expirado=not.is.true&limit=2000`, { headers: supabaseHeaders() }),
       fetch(`${API_BASE_URL}/planeamento?select=equipa&status=neq.Cancelado&limit=2000`, { headers: supabaseHeaders() })
     ]);
+    if (!resCert.ok && !resPlan.ok) return;
+
     const certRows = resCert.ok ? await resCert.json() : [];
     const planRows = resPlan.ok ? await resPlan.json() : [];
 
@@ -1749,17 +1764,20 @@ async function loadIndTeams() {
     };
     render();
 
-    container.addEventListener("click", e => {
-      const tile = e.target.closest("[data-ind-team]");
-      if (!tile) return;
-      const team = tile.dataset.indTeam;
-      indTeamFilter = indTeamFilter === team ? "" : team;
-      render();
-      loadIndOverview(indTeamFilter);
-      loadIndChart(indTeamFilter);
-      loadIndNewCertsChart(indTeamFilter);
-      loadIndProjection(indTeamFilter);
-    });
+    if (!_indTeamsBound) {
+      container.addEventListener("click", e => {
+        const tile = e.target.closest("[data-ind-team]");
+        if (!tile) return;
+        const team = tile.dataset.indTeam;
+        indTeamFilter = indTeamFilter === team ? "" : team;
+        render();
+        loadIndOverview(indTeamFilter);
+        loadIndChart(indTeamFilter);
+        loadIndNewCertsChart(indTeamFilter);
+        loadIndProjection(indTeamFilter);
+      });
+      _indTeamsBound = true;
+    }
   } catch (err) {
     console.error("Erro ao carregar equipas de indicadores:", err);
   }
@@ -2553,6 +2571,242 @@ async function loadHomeTotals() {
 
 loadHomeTotals();
 
+// ── ADMIN ───────────────────────────────────────────────────────────────────
+
+function setAdminFeedback(text, tone = "info") {
+  const box = document.getElementById("adminFeedback");
+  if (!box) return;
+  box.textContent = text || "";
+  box.className = `admin-feedback ${tone}`;
+}
+
+function setPasswordFeedback(text, tone = "info") {
+  const box = document.getElementById("passwordFeedback");
+  if (!box) return;
+  box.textContent = text || "";
+  box.className = `admin-feedback ${tone}`;
+}
+
+async function loadAdminUsers() {
+  const body = document.getElementById("adminUsersBody");
+  if (!body) return;
+
+  if (!authState.isAdmin) {
+    body.innerHTML = `<tr><td colspan="5">Sem permissões de administrador.</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = `<tr><td colspan="5">A carregar utilizadores…</td></tr>`;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("authorized_emails")
+      .select("email,active,is_admin,created_at,updated_at")
+      .order("email", { ascending: true });
+
+    if (error) throw error;
+
+    const rows = Array.isArray(data) ? data : [];
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="5">Sem utilizadores na whitelist.</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = rows.map((row) => {
+      const email = String(row.email || "").toLowerCase();
+      const isSelf = email === authState.email;
+      return `<tr>
+        <td>${escapeHtml(email)}</td>
+        <td>${row.active ? '<span class="badge ok">Ativo</span>' : '<span class="badge danger">Inativo</span>'}</td>
+        <td>${row.is_admin ? '<span class="badge warn">Admin</span>' : '<span class="badge">Utilizador</span>'}</td>
+        <td>${escapeHtml(String(row.updated_at || row.created_at || "—").replace("T", " ").slice(0, 19))}</td>
+        <td class="admin-user-actions">
+          <button type="button" class="mini-btn admin-mini" data-admin-action="toggle-active" data-admin-email="${escapeHtml(email)}" title="Ativar/Inativar">${row.active ? "⏸" : "▶"}</button>
+          <button type="button" class="mini-btn admin-mini" data-admin-action="toggle-admin" data-admin-email="${escapeHtml(email)}" title="Dar/Retirar Admin" ${isSelf ? "disabled" : ""}>★</button>
+        </td>
+      </tr>`;
+    }).join("");
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="5">Erro a carregar whitelist.</td></tr>`;
+    console.error("Erro a carregar admin users:", err);
+  }
+}
+
+async function onAdminUsersClick(e) {
+  const btn = e.target.closest("[data-admin-action]");
+  if (!btn) return;
+  if (!authState.isAdmin) return;
+
+  const action = btn.dataset.adminAction;
+  const email = String(btn.dataset.adminEmail || "").toLowerCase();
+  if (!email) return;
+
+  btn.disabled = true;
+  setAdminFeedback("A guardar alterações…", "info");
+
+  try {
+    const { data: currentRows, error: currentErr } = await supabaseClient
+      .from("authorized_emails")
+      .select("email,active,is_admin")
+      .eq("email", email)
+      .limit(1);
+    if (currentErr) throw currentErr;
+    const row = currentRows?.[0];
+    if (!row) throw new Error("Utilizador não encontrado na whitelist.");
+
+    if (action === "toggle-active") {
+      const { error } = await supabaseClient
+        .from("authorized_emails")
+        .update({ active: !row.active })
+        .eq("email", email);
+      if (error) throw error;
+      setAdminFeedback(`Estado de ${email} atualizado.`, "success");
+    }
+
+    if (action === "toggle-admin") {
+      const { error } = await supabaseClient
+        .from("authorized_emails")
+        .update({ is_admin: !row.is_admin })
+        .eq("email", email);
+      if (error) throw error;
+      setAdminFeedback(`Permissões de ${email} atualizadas.`, "success");
+    }
+
+    await loadAdminUsers();
+  } catch (err) {
+    console.error("Erro na atualização de utilizador:", err);
+    setAdminFeedback(`Erro: ${err.message || "não foi possível atualizar utilizador."}`, "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function handleAdminCreateUser(e) {
+  e.preventDefault();
+  if (!authState.isAdmin) return;
+
+  const emailEl = document.getElementById("adminNewEmail");
+  const passEl = document.getElementById("adminNewPassword");
+  const activeEl = document.getElementById("adminNewActive");
+  const adminEl = document.getElementById("adminNewIsAdmin");
+  const submitBtn = document.getElementById("adminCreateBtn");
+  if (!emailEl || !passEl || !activeEl || !adminEl) return;
+
+  const email = String(emailEl.value || "").trim().toLowerCase();
+  const password = String(passEl.value || "");
+  const active = Boolean(activeEl.checked);
+  const isAdmin = Boolean(adminEl.checked);
+
+  if (!email || !password) {
+    setAdminFeedback("Indica email e password.", "error");
+    return;
+  }
+  if (password.length < 8) {
+    setAdminFeedback("A password deve ter pelo menos 8 caracteres.", "error");
+    return;
+  }
+
+  if (submitBtn) submitBtn.disabled = true;
+  setAdminFeedback("A criar utilizador…", "info");
+
+  try {
+    const tempAdminClient = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    });
+
+    const { error: signErr } = await tempAdminClient.auth.signUp({ email, password });
+    if (signErr && !/already|registered|exists/i.test(String(signErr.message || ""))) {
+      throw signErr;
+    }
+
+    const { error: upsertErr } = await supabaseClient
+      .from("authorized_emails")
+      .upsert({ email, active, is_admin: isAdmin }, { onConflict: "email" });
+    if (upsertErr) throw upsertErr;
+
+    setAdminFeedback(`Utilizador ${email} criado/atualizado com sucesso.`, "success");
+    emailEl.value = "";
+    passEl.value = "";
+    activeEl.checked = true;
+    adminEl.checked = false;
+    await loadAdminUsers();
+  } catch (err) {
+    console.error("Erro a criar utilizador:", err);
+    setAdminFeedback(`Erro: ${err.message || "não foi possível criar utilizador."}`, "error");
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+async function handleOwnPasswordChange(e) {
+  e.preventDefault();
+
+  const passEl = document.getElementById("adminOwnPassword");
+  const pass2El = document.getElementById("adminOwnPasswordConfirm");
+  const submitBtn = document.getElementById("changePasswordBtn");
+  if (!passEl || !pass2El) return;
+
+  const pass1 = String(passEl.value || "");
+  const pass2 = String(pass2El.value || "");
+
+  if (!pass1 || !pass2) {
+    setPasswordFeedback("Preenche os dois campos de password.", "error");
+    return;
+  }
+  if (pass1.length < 8) {
+    setPasswordFeedback("A password deve ter pelo menos 8 caracteres.", "error");
+    return;
+  }
+  if (pass1 !== pass2) {
+    setPasswordFeedback("As passwords não coincidem.", "error");
+    return;
+  }
+
+  if (submitBtn) submitBtn.disabled = true;
+  setPasswordFeedback("A atualizar password…", "info");
+
+  try {
+    const { error } = await supabaseClient.auth.updateUser({ password: pass1 });
+    if (error) throw error;
+    passEl.value = "";
+    pass2El.value = "";
+    setPasswordFeedback("Password atualizada com sucesso.", "success");
+  } catch (err) {
+    console.error("Erro a atualizar password:", err);
+    setPasswordFeedback(`Erro: ${err.message || "não foi possível atualizar a password."}`, "error");
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+function loadAdminPage() {
+  const guard = document.getElementById("adminAccessGuard");
+  const content = document.getElementById("adminContent");
+  const usersBody = document.getElementById("adminUsersBody");
+  if (!guard && !content && !usersBody) return;
+
+  if (!authState.isAdmin) {
+    if (guard) guard.style.display = "";
+    if (content) content.style.display = "none";
+    return;
+  }
+
+  if (guard) guard.style.display = "none";
+  if (content) content.style.display = "";
+  loadAdminUsers();
+}
+
+const adminCreateForm = document.getElementById("adminCreateUserForm");
+if (adminCreateForm) adminCreateForm.addEventListener("submit", handleAdminCreateUser);
+
+const adminUsersTable = document.getElementById("adminUsersBody");
+if (adminUsersTable) adminUsersTable.addEventListener("click", onAdminUsersClick);
+
+const changePasswordForm = document.getElementById("changePasswordForm");
+if (changePasswordForm) changePasswordForm.addEventListener("submit", handleOwnPasswordChange);
+
+loadAdminPage();
+
 // ── ALERT COUNTERS ────────────────────────────────────────────────────────────
 
 let alertTeamFilter = "";
@@ -2845,6 +3099,7 @@ async function loadPlanAlerts(teamFilter = "") {
 
       listEl.addEventListener("click", e => {
         if (e.target.closest('.alert-email-btn') || e.target.closest('.alert-card-checkbox')) return;
+        const card = e.target.closest("[data-href]");
         if (card) window.location.href = card.dataset.href;
       });
       listEl.addEventListener("keydown", e => {
@@ -2870,6 +3125,8 @@ async function loadAlertTeams() {
       fetch(`${API_BASE_URL}/stay_certified?select=equipa&expirado=not.is.true&limit=2000`, { headers: supabaseHeaders() }),
       fetch(`${API_BASE_URL}/planeamento?select=equipa&status=neq.Cancelado&limit=2000`, { headers: supabaseHeaders() })
     ]);
+
+    if (!resCert.ok && !resPlan.ok) return;
 
     const certRows = resCert.ok ? await resCert.json() : [];
     const planRows = resPlan.ok ? await resPlan.json() : [];
