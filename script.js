@@ -2190,9 +2190,9 @@ function _buildProjDatasets(proj, nPoints) {
     pointRadius: 0, pointHoverRadius: 0,
     tension: 0, fill: false, spanGaps: true
   });
-  if (proj.obj_inetum != null)
-    out.push(mkLine(`Obj. Inetum (${proj.obj_inetum}%)`, "rgba(255,152,0,.45)",
-      Math.round((proj.obj_inetum / 100) * proj.consultores)));
+  if (proj.obj_portal != null)
+    out.push(mkLine(`Obj. Portal (${proj.obj_portal}%)`, "rgba(255,152,0,.45)",
+      Math.round((proj.obj_portal / 100) * proj.consultores)));
   if (proj.obj_equipa != null)
     out.push(mkLine(`Obj. Equipa (${proj.obj_equipa}%)`, "rgba(0,230,118,.45)",
       Math.round((proj.obj_equipa / 100) * proj.consultores)));
@@ -2221,11 +2221,11 @@ function projSave(team, data) {
 
 function updateProjCalcs() {
   const c         = Number(document.getElementById("projConsultores")?.value) || 0;
-  const inetumPct = parseFloat(document.getElementById("projObjInetum")?.value);
+  const PortalPct = parseFloat(document.getElementById("projObjPortal")?.value);
   const equipaPct = parseFloat(document.getElementById("projObjEquipa")?.value);
-  const calcI = document.getElementById("projObjInetumCalc");
+  const calcI = document.getElementById("projObjPortalCalc");
   const calcE = document.getElementById("projObjEquipaCalc");
-  if (calcI) calcI.textContent = c && !isNaN(inetumPct) ? Math.round(inetumPct / 100 * c) : "—";
+  if (calcI) calcI.textContent = c && !isNaN(PortalPct) ? Math.round(PortalPct / 100 * c) : "—";
   if (calcE) calcE.textContent = c && !isNaN(equipaPct) ? Math.round(equipaPct / 100 * c) : "—";
 }
 
@@ -2274,7 +2274,7 @@ function loadIndProjection(team) {
   const saved = projLoad(team);
 
   // Clone interactive elements to drop stale listeners
-  ["projConsultores", "projObjInetum", "projObjEquipa", "projObjActive"].forEach(id => {
+  ["projConsultores", "projObjPortal", "projObjEquipa", "projObjActive"].forEach(id => {
     const el = document.getElementById(id);
     if (el) { const f = el.cloneNode(true); el.parentNode.replaceChild(f, el); }
   });
@@ -2282,14 +2282,14 @@ function loadIndProjection(team) {
   // Populate
   const inp = id => document.getElementById(id);
   inp("projConsultores").value  = saved.consultores ?? "";
-  inp("projObjInetum").value    = saved.obj_inetum  ?? "";
+  inp("projObjPortal").value    = saved.obj_portal  ?? "";
   inp("projObjEquipa").value    = saved.obj_equipa  ?? "";
   inp("projObjActive").checked  = saved.obj_active  !== false;
 
   // Apply inactive state on both objective tiles together
   const applyInactive = () => {
     const off = !inp("projObjActive").checked;
-    document.getElementById("projObjInetumTile")?.classList.toggle("proj-inactive", off);
+    document.getElementById("projObjPortalTile")?.classList.toggle("proj-inactive", off);
     document.getElementById("projObjEquipaTile")?.classList.toggle("proj-inactive", off);
   };
   applyInactive();
@@ -2298,7 +2298,7 @@ function loadIndProjection(team) {
   const persist = () => {
     projSave(team, {
       consultores: inp("projConsultores").value !== "" ? Number(inp("projConsultores").value) : null,
-      obj_inetum:  inp("projObjInetum").value  !== "" ? Number(inp("projObjInetum").value)   : null,
+      obj_portal:  inp("projObjPortal").value  !== "" ? Number(inp("projObjPortal").value)   : null,
       obj_equipa:  inp("projObjEquipa").value  !== "" ? Number(inp("projObjEquipa").value)   : null,
       obj_active:  inp("projObjActive").checked,
     });
@@ -2307,10 +2307,10 @@ function loadIndProjection(team) {
   };
 
   inp("projConsultores").addEventListener("input",  updateProjCalcs);
-  inp("projObjInetum").addEventListener("input",    updateProjCalcs);
+  inp("projObjPortal").addEventListener("input",    updateProjCalcs);
   inp("projObjEquipa").addEventListener("input",    updateProjCalcs);
   inp("projConsultores").addEventListener("change", persist);
-  inp("projObjInetum").addEventListener("change",   persist);
+  inp("projObjPortal").addEventListener("change",   persist);
   inp("projObjEquipa").addEventListener("change",   persist);
 
   inp("projObjActive").addEventListener("change", () => { applyInactive(); persist(); });
@@ -2834,7 +2834,7 @@ async function loadPlanAlerts(teamFilter = "") {
           const bulletList = checked.map(item => `• ${item.email} planeado para certificação ${item.codigo} em ${item.data}`).join('\n');
 
           // Construir body de email
-          let emailBody = `Olá,\n\nDe acordo com o planeamento de objetivos realizados convosco, estamos próximos da data de realização da vossa certificação SAP.\n\nEsta etapa é essencial para desenvolvermos as nossas competências, crescermos como equipa e atingirmos um objetivo crucial para a Inetum: aumentar o número de consultores certificados e garantir o nosso estatuto de parceria junto da SAP.\n\nCada um de vocês é uma peça fundamental para que este objetivo se torne realidade. Esta certificação não só fortalece as vossas competências individuais, como também posiciona a nossa equipa como um exemplo de excelência e inovação.\n\nSe estás a receber este email significa que foi feito um planeamento para obteres a tua certificação em breve. Este planeamento deve ser cumprido com a maior objetividade e compromisso possíveis.\n\n${bulletList}\n\nCaso não tenhas ainda licença de Learning Hub atribuída, informa-nos por favor.\nEm caso de dúvidas, desafios ou precisares de apoio, não hesites em entrar em contacto.\n\nObrigado e bons estudos,`;
+          let emailBody = `Olá,\n\nDe acordo com o planeamento de objetivos realizados convosco, estamos próximos da data de realização da vossa certificação SAP.\n\nEsta etapa é essencial para desenvolvermos as nossas competências, crescermos como equipa e atingirmos um objetivo crucial para a Portal: aumentar o número de consultores certificados e garantir o nosso estatuto de parceria junto da SAP.\n\nCada um de vocês é uma peça fundamental para que este objetivo se torne realidade. Esta certificação não só fortalece as vossas competências individuais, como também posiciona a nossa equipa como um exemplo de excelência e inovação.\n\nSe estás a receber este email significa que foi feito um planeamento para obteres a tua certificação em breve. Este planeamento deve ser cumprido com a maior objetividade e compromisso possíveis.\n\n${bulletList}\n\nCaso não tenhas ainda licença de Learning Hub atribuída, informa-nos por favor.\nEm caso de dúvidas, desafios ou precisares de apoio, não hesites em entrar em contacto.\n\nObrigado e bons estudos,`;
 
           // Gerar mailto com Outlook
           const subject = 'Certificações SAP - certificação a realizar';
