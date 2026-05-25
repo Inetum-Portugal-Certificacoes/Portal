@@ -2,11 +2,13 @@
 const _initSearch = window.location.search;
 if (_initSearch) history.replaceState(null, "", window.location.pathname);
 
+const authState = { email: null };
+
 // Update UI based on auth state
 function updateAuthUI() {
   const loginBtn = document.getElementById('loginBtn');
   const logoutBtn = document.getElementById('logoutBtn');
-  const isAuthenticated = authManager?.session?.user?.email;
+  const isAuthenticated = Boolean(authState.email);
   
   if (loginBtn) loginBtn.style.display = isAuthenticated ? 'none' : 'inline-block';
   if (logoutBtn) logoutBtn.style.display = isAuthenticated ? 'inline-block' : 'none';
@@ -19,24 +21,22 @@ function updateAuthUI() {
     updateAuthUI();
     return;
   }
-  
-  if (!authManager?.session) {
-    window.location.href = (window.__APP_BASE || '/') + 'login.html';
-    return;
+
+  try {
+    const meRes = await fetch('/api/auth/me', { credentials: 'include' });
+    if (!meRes.ok) {
+      window.location.href = '/login';
+      return;
+    }
+    const me = await meRes.json();
+    authState.email = String(me.email || '').toLowerCase();
+    updateAuthUI();
+  } catch (_err) {
+    window.location.href = '/login';
   }
-  
-  const authorized = await authManager.isUserAuthorized();
-  if (!authorized) {
-    await authManager.logout();
-    window.location.href = (window.__APP_BASE || '/') + 'login.html?error=not_authorized';
-    return;
-  }
-  
-  updateAuthUI();
 })();
 
-const SUPABASE_BASE_URL = (window.__SUPABASE_CONFIG__?.SUPABASE_URL || '').replace(/\/+$/, '');
-const API_BASE_URL = `${SUPABASE_BASE_URL}/rest/v1`;
+const API_BASE_URL = '/api';
 
 const SITE_OPTIONS = ["Lisboa", "Porto", "Braganca", "Covilha", "Brasil"];
 const COLUMN_KEYS = ["equipa", "email", "codigo_certificacao", "nome_certificacao", "site", "data_certificacao", "data_expiracao", "externo", "status_cert", "saiu", "notas", "acoes"];
@@ -89,8 +89,8 @@ function escapeHtml(value) {
 
 async function logoutUser(e) {
   e?.preventDefault();
-  await authManager.logout();
-  window.location.href = (window.__APP_BASE || '/') + 'login.html';
+  await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+  window.location.href = '/login';
 }
 
 function calcExpirado(dateStr) {
@@ -101,10 +101,8 @@ function rowStateLabel(row) { return row.expirado ? "Expirado" : "Ativo"; }
 function externoLabel(row) { return row.externo ? "Sim" : ""; }
 function saiuLabel(row) { return row.saiu ? "Sim" : ""; }
 function supabaseHeaders(extra = {}) {
-  const token = authManager.getAccessToken();
   return {
     "Content-Type": "application/json",
-    ...(token && { "Authorization": `Bearer ${token}` }),
     ...extra
   };
 }
