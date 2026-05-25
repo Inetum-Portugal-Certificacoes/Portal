@@ -2587,6 +2587,35 @@ function setPasswordFeedback(text, tone = "info") {
   box.className = `admin-feedback ${tone}`;
 }
 
+function bytesToHex(bytes) {
+  return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function makeClientPasswordHash(password) {
+  if (!window.crypto?.subtle || !window.crypto?.getRandomValues) {
+    throw new Error("WebCrypto não disponível neste browser");
+  }
+  const encoder = new TextEncoder();
+  const salt = new Uint8Array(16);
+  window.crypto.getRandomValues(salt);
+
+  const key = await window.crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"]
+  );
+
+  const iterations = 210000;
+  const bits = await window.crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+    key,
+    256
+  );
+  const hash = new Uint8Array(bits);
+  return `pbkdf2$${iterations}$sha256$${bytesToHex(salt)}$${bytesToHex(hash)}`;
+}
 async function loadAdminUsers() {
   const body = document.getElementById("adminUsersBody");
   if (!body) return;
@@ -2697,77 +2726,53 @@ async function handleAdminCreateUser(e) {
   const active = Boolean(activeEl.checked);
   const isAdmin = Boolean(adminEl.checked);
 
-  if (!email) {
-    setAdminFeedback("Indica um email válido.", "error");
+  if (!email || !password) {
+    setAdminFeedback("Indica email e password.", "error");
     return;
   }
 
-  // Password is optional. If provided, require minimum strength.
-  if (password && password.length < 8) {
+  if (password.length < 8) {
     setAdminFeedback("A password deve ter pelo menos 8 caracteres.", "error");
     return;
   }
 
   if (submitBtn) submitBtn.disabled = true;
-  setAdminFeedback("A atualizar whitelist…", "info");
+  setAdminFeedback("A criar utilizador no Auth e whitelist…", "info");
 
   try {
-    let authCreated = false;
-    let authCreationWarning = "";
-    let whitelistUpdatedByApi = false;
-    let passwordUpdatedByApi = false;
-
-    // If password is provided, creation must go through private API to persist password fields.
-    if (password && window.location.hostname.endsWith("github.io")) {
-      throw new Error("Para guardar password, usa o servidor privado (http://localhost:3000/admin com npm run start:private)");
-    }
-
-    // If we are on private server and password is provided, try creating Auth user too.
-    const canTryPrivateAuth = !window.location.hostname.endsWith("github.io") && Boolean(password);
-    if (canTryPrivateAuth) {
-      try {
-        const res = await fetch("/api/admin/users", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(supabaseAccessToken ? { Authorization: `Bearer ${supabaseAccessToken}` } : {})
-          },
-          body: JSON.stringify({ email, password, active, is_admin: isAdmin })
-        });
-
-        let payload = null;
-        try { payload = await res.json(); } catch { payload = null; }
-        if (res.ok) {
-          authCreated = Boolean(payload?.auth_created);
-          whitelistUpdatedByApi = Boolean(payload?.whitelist_updated);
-          passwordUpdatedByApi = Boolean(payload?.password_hash_updated);
-        } else {
-          authCreationWarning = payload?.error || payload?.message || `HTTP ${res.status}`;
-        }
-      } catch (authErr) {
-        authCreationWarning = authErr?.message || "Falha ao criar conta Auth";
+    const tempAuthClient = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false
       }
-    }
+    });
 
-    if (!whitelistUpdatedByApi) {
-      if (password) {
-        throw new Error("Password não foi atualizada porque o endpoint privado não respondeu com sucesso");
-      }
-      // Fallback for static GitHub Pages context: whitelist update only.
-      const { error: upsertErr } = await supabaseClient
-        .from("authorized_emails")
-        .upsert({ email, active, is_admin: isAdmin }, { onConflict: "email" });
-      if (upsertErr) throw upsertErr;
-    }
+    const { error: signErr } = await tempAuthClient.auth.signUp({ email, password });
+    const authExists = /already|registered|exists/i.test(String(signErr?.message || ""));
+    if (signErr && !authExists) throw signErr;
 
-    if (authCreated && passwordUpdatedByApi) {
-      setAdminFeedback(`Utilizador ${email} criado no Auth e password atualizada na whitelist.`, "success");
-    } else if (authCreated) {
-      setAdminFeedback(`Utilizador ${email} criado no Auth e whitelist atualizada.`, "success");
-    } else if (authCreationWarning) {
-      setAdminFeedback(`Whitelist atualizada para ${email}. Nota: conta Auth não foi criada (${authCreationWarning}).`, "info");
+    const passwordHash = await makeClientPasswordHash(password);
+    const passwordUpdatedAt = new Date().toISOString();
+
+    const { error: upsertErr } = await supabaseClient
+      .from("authorized_emails")
+      .upsert(
+        {
+          email,
+          active,
+          is_admin: isAdmin,
+          password_hash: passwordHash,
+          password_updated_at: passwordUpdatedAt
+        },
+        { onConflict: "email" }
+      );
+    if (upsertErr) throw upsertErr;
+
+    if (authExists) {
+      setAdminFeedback(`Utilizador ${email} já existia no Auth; password hash da whitelist foi atualizada.`, "success");
     } else {
-      setAdminFeedback(`Whitelist atualizada para ${email}.`, "success");
+      setAdminFeedback(`Utilizador ${email} criado em Auth e whitelist com password hash.`, "success");
     }
 
     emailEl.value = "";
@@ -2813,9 +2818,18 @@ async function handleOwnPasswordChange(e) {
   try {
     const { error } = await supabaseClient.auth.updateUser({ password: pass1 });
     if (error) throw error;
+
+    const passwordHash = await makeClientPasswordHash(pass1);
+    const passwordUpdatedAt = new Date().toISOString();
+    const { error: tableErr } = await supabaseClient
+      .from("authorized_emails")
+      .update({ password_hash: passwordHash, password_updated_at: passwordUpdatedAt })
+      .eq("email", authState.email);
+    if (tableErr) throw tableErr;
+
     passEl.value = "";
     pass2El.value = "";
-    setPasswordFeedback("Password atualizada com sucesso.", "success");
+    setPasswordFeedback("Password atualizada com sucesso (Auth + whitelist).", "success");
   } catch (err) {
     console.error("Erro a atualizar password:", err);
     setPasswordFeedback(`Erro: ${err.message || "não foi possível atualizar a password."}`, "error");
