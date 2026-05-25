@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entrar | Inetum Portugal Certificações</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body { background: linear-gradient(135deg, #0f1e2e 0%, #1a3a52 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .login-container { width: 100%; max-width: 400px; padding: 20px; }
+    .login-card { background: rgba(30, 50, 70, 0.9); border: 1px solid rgba(100, 180, 255, 0.2); border-radius: 12px; padding: 40px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3); }
+    .login-logo { text-align: center; margin-bottom: 30px; }
+    .login-logo img { height: 50px; }
+    .login-title { color: #e0eaf4; font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 10px; }
+    .login-subtitle { color: #8899aa; font-size: 14px; text-align: center; margin-bottom: 30px; }
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; color: #c8d8e8; font-size: 13px; font-weight: 500; margin-bottom: 8px; }
+    .form-group input { width: 100%; padding: 12px; background: rgba(15, 30, 46, 0.8); border: 1px solid rgba(100, 180, 255, 0.3); border-radius: 6px; color: #e0eaf4; font-size: 14px; font-family: inherit; }
+    .form-group input:focus { outline: none; border-color: #00d4ff; box-shadow: 0 0 12px rgba(0, 212, 255, 0.2); }
+    .btn-login { width: 100%; padding: 12px; background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%); border: none; border-radius: 6px; color: #0f1e2e; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+    .btn-login:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 212, 255, 0.3); }
+    .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+    .error { color: #ff6b6b; font-size: 12px; margin-top: 8px; }
+    .success { color: #51cf66; font-size: 12px; margin-top: 8px; }
+    .info { color: #8899aa; font-size: 12px; text-align: center; margin-top: 20px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="/Portal/assets/inetum-logo.svg" alt="Inetum" />
+      </div>
+      <h1 class="login-title">Entrar</h1>
+      <p class="login-subtitle">Portal de Certificações</p>
+
+      <div id="stage-email">
+        <form id="email-form" onsubmit="requestOTP(event)">
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" required placeholder="seu.email@empresa.com" />
+            <div id="email-error" class="error hidden"></div>
+          </div>
+          <button type="submit" class="btn-login" id="btn-request">Enviar Código</button>
+        </form>
+        <p class="info">Um código será enviado para o teu email autorizado.</p>
+      </div>
+
+      <div id="stage-otp" class="hidden">
+        <form id="otp-form" onsubmit="verifyOTP(event)">
+          <div class="form-group">
+            <label for="otp">Código de Verificação</label>
+            <input type="text" id="otp" name="otp" required placeholder="000000" maxlength="6" />
+            <div id="otp-error" class="error hidden"></div>
+          </div>
+          <button type="submit" class="btn-login" id="btn-verify">Confirmar</button>
+        </form>
+        <button onclick="backToEmail()" style="width: 100%; padding: 10px; background: transparent; border: 1px solid #8899aa; color: #8899aa; border-radius: 6px; margin-top: 10px; cursor: pointer;">Voltar</button>
+        <p class="info">Verifiquei que não recebeste código? <a href="#" onclick="requestOTP({preventDefault: () => {}})" style="color: #00d4ff; text-decoration: none;">Reenviar</a></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    let currentEmail = '';
+
+    async function requestOTP(e) {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim().toLowerCase();
+      const btn = document.getElementById('btn-request');
+      const err = document.getElementById('email-error');
+
+      if (!email) return;
+
+      btn.disabled = true;
+      err.classList.add('hidden');
+
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/request-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+
+        if (!res.ok) {
+          const body = await res.json();
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+
+        currentEmail = email;
+        document.getElementById('stage-email').classList.add('hidden');
+        document.getElementById('stage-otp').classList.remove('hidden');
+      } catch (err) {
+        err.textContent = `Erro: ${err.message}`;
+        err.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function verifyOTP(e) {
+      e.preventDefault();
+      const otp = document.getElementById('otp').value.trim();
+      const btn = document.getElementById('btn-verify');
+      const err = document.getElementById('otp-error');
+
+      if (!otp) return;
+
+      btn.disabled = true;
+      err.classList.add('hidden');
+
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: currentEmail, token: otp }),
+          credentials: 'include'
+        });
+
+        if (!res.ok) {
+          const body = await res.json();
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+
+        window.location.href = '/';
+      } catch (err) {
+        err.textContent = `Erro: ${err.message}`;
+        err.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function backToEmail() {
+      document.getElementById('stage-otp').classList.add('hidden');
+      document.getElementById('stage-email').classList.remove('hidden');
+      document.getElementById('email').focus();
+    }
+  </script>
+</body>
+</html>
