@@ -49,12 +49,18 @@ class AuthManager {
 
   async requestOTP(email) {
     try {
+      console.log('[Auth] Iniciando requestOTP para:', email);
       const { error } = await supabaseClient.auth.signInWithOtp({
         email: email.toLowerCase().trim()
       });
-      if (error) throw error;
+      if (error) {
+        console.error('[Auth] Erro ao solicitar OTP:', error);
+        throw error;
+      }
+      console.log('[Auth] OTP solicitado com sucesso');
       return { success: true };
     } catch (err) {
+      console.error('[Auth] Exceção em requestOTP:', err);
       return { success: false, error: err.message };
     }
   }

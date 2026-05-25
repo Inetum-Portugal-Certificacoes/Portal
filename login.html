@@ -83,15 +83,26 @@
       err.classList.add('hidden');
 
       try {
+        console.log('Solicitando OTP para:', email);
         const result = await authManager.requestOTP(email);
+        console.log('Resultado requestOTP:', result);
+        
         if (!result.success) throw new Error(result.error);
 
         currentEmail = email;
-        document.getElementById('stage-email').classList.add('hidden');
-        document.getElementById('stage-otp').classList.remove('hidden');
-      } catch (err) {
-        err.textContent = `Erro: ${err.message}`;
+        err.textContent = '✅ Código enviado! Verifique o seu email.';
         err.classList.remove('hidden');
+        err.style.color = '#51cf66';
+        
+        setTimeout(() => {
+          document.getElementById('stage-email').classList.add('hidden');
+          document.getElementById('stage-otp').classList.remove('hidden');
+        }, 1000);
+      } catch (err) {
+        console.error('Erro ao solicitar OTP:', err);
+        err.textContent = `❌ Erro: ${err.message}`;
+        err.classList.remove('hidden');
+        err.style.color = '#ff6b6b';
       } finally {
         btn.disabled = false;
       }

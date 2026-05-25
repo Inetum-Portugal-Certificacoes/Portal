@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Debug Supabase | Certificações</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Inter', sans-serif; 
+      background: #0f1e2e; 
+      color: #e0eaf4; 
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { color: #00d4ff; margin-bottom: 30px; }
+    .section { background: rgba(30, 50, 70, 0.8); border: 1px solid rgba(100, 180, 255, 0.2); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .section-title { font-size: 16px; font-weight: 600; color: #00d4ff; margin-bottom: 15px; }
+    .status { display: flex; gap: 10px; align-items: center; padding: 10px; margin: 10px 0; border-radius: 6px; }
+    .status.ok { background: rgba(81, 207, 102, 0.2); color: #51cf66; border-left: 3px solid #51cf66; }
+    .status.error { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; border-left: 3px solid #ff6b6b; }
+    .status.info { background: rgba(0, 212, 255, 0.2); color: #00d4ff; border-left: 3px solid #00d4ff; }
+    .log { background: #000; padding: 15px; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 12px; max-height: 400px; overflow-y: auto; margin: 10px 0; }
+    .log-line { margin: 5px 0; }
+    .log-error { color: #ff6b6b; }
+    .log-success { color: #51cf66; }
+    .log-info { color: #00d4ff; }
+    button { background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%); border: none; color: #0f1e2e; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; margin: 5px; }
+    button:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 Diagnóstico Supabase</h1>
+
+    <div class="section">
+      <div class="section-title">1. Configuração Carregada</div>
+      <div id="config-status"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">2. Cliente Supabase</div>
+      <div id="client-status"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">3. Teste de OTP Request</div>
+      <input type="email" id="test-email" placeholder="seu.email@empresa.com" style="padding: 10px; border-radius: 6px; border: 1px solid #00d4ff; background: #0f1e2e; color: #e0eaf4; width: 300px;" />
+      <button onclick="testOTP()">Testar OTP Request</button>
+      <div id="otp-result"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">4. Logs de Diagnóstico</div>
+      <div class="log" id="debug-log"></div>
+      <button onclick="clearLogs()">Limpar Logs</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">5. Verificação de Email Provider</div>
+      <button onclick="checkEmailProvider()">Verificar Email Provider</button>
+      <div id="email-provider-status"></div>
+    </div>
+  </div>
+
+  <script src="/Portal/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/Portal/auth.js"></script>
+
+  <script>
+    const logDiv = document.getElementById('debug-log');
+    let logEntries = [];
+
+    function addLog(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      logEntries.unshift(`[${timestamp}] ${message}`);
+      updateLog();
+      console.log(`[${type}]`, message);
+    }
+
+    function updateLog() {
+      logDiv.innerHTML = logEntries.map((line, i) => {
+        let color = 'log-info';
+        if (line.includes('❌') || line.includes('Error') || line.includes('erro')) color = 'log-error';
+        if (line.includes('✅') || line.includes('Success') || line.includes('sucesso')) color = 'log-success';
+        return `<div class="log-line ${color}">${escapeHtml(line)}</div>`;
+      }).join('');
+    }
+
+    function clearLogs() {
+      logEntries = [];
+      updateLog();
+      addLog('Logs limpos');
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // 1. Verificar configuração
+    function checkConfig() {
+      const configDiv = document.getElementById('config-status');
+      addLog('A verificar configuração...');
+      
+      if (!window.__SUPABASE_CONFIG__) {
+        configDiv.innerHTML = '<div class="status error">❌ config.js não carregado</div>';
+        addLog('❌ config.js não encontrado', 'error');
+        return;
+      }
+
+      const url = window.__SUPABASE_CONFIG__.SUPABASE_URL;
+      const key = window.__SUPABASE_CONFIG__.SUPABASE_ANON_KEY;
+      
+      const status = `
+        <div class="status ok">✅ Config carregado</div>
+        <div class="status info">URL: ${url}</div>
+        <div class="status info">Key: ${key.substring(0, 20)}...</div>
+      `;
+      configDiv.innerHTML = status;
+      addLog('✅ Config carregada com sucesso');
+    }
+
+    // 2. Verificar cliente Supabase
+    function checkClient() {
+      const clientDiv = document.getElementById('client-status');
+      addLog('A verificar cliente Supabase...');
+      
+      if (typeof supabase === 'undefined') {
+        clientDiv.innerHTML = '<div class="status error">❌ Biblioteca @supabase/supabase-js não carregada</div>';
+        addLog('❌ Supabase JS não carregado', 'error');
+        return;
+      }
+
+      if (!window.supabaseClient) {
+        clientDiv.innerHTML = '<div class="status error">❌ supabaseClient não inicializado</div>';
+        addLog('❌ supabaseClient não inicializado', 'error');
+        return;
+      }
+
+      clientDiv.innerHTML = '<div class="status ok">✅ Cliente Supabase inicializado</div>';
+      addLog('✅ Cliente Supabase funcionando');
+    }
+
+    // 3. Teste OTP Request
+    async function testOTP() {
+      const email = document.getElementById('test-email').value.trim().toLowerCase();
+      const resultDiv = document.getElementById('otp-result');
+      
+      if (!email) {
+        resultDiv.innerHTML = '<div class="status error">❌ Email não preenchido</div>';
+        return;
+      }
+
+      resultDiv.innerHTML = '<div class="status info">⏳ A solicitar OTP...</div>';
+      addLog(`Solicitando OTP para: ${email}`);
+
+      try {
+        const result = await authManager.requestOTP(email);
+        
+        if (result.success) {
+          resultDiv.innerHTML = '<div class="status ok">✅ OTP solicitado com sucesso! Verifica o email.</div>';
+          addLog(`✅ OTP enviado para ${email}`);
+        } else {
+          resultDiv.innerHTML = `<div class="status error">❌ Erro: ${result.error}</div>`;
+          addLog(`❌ Erro ao solicitar OTP: ${result.error}`, 'error');
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="status error">❌ Exceção: ${error.message}</div>`;
+        addLog(`❌ Exceção: ${error.message}`, 'error');
+      }
+    }
+
+    // 4. Verificar Email Provider
+    async function checkEmailProvider() {
+      const statusDiv = document.getElementById('email-provider-status');
+      statusDiv.innerHTML = '<div class="status info">⏳ A verificar Email Provider...</div>';
+      addLog('A verificar Email Provider no Supabase...');
+
+      try {
+        // Tentar fazer um request para auth.admin.listUsers (requer service key)
+        // Como não temos service key do lado do cliente, vamos tentar criar um user de teste
+        const testEmail = `test-${Date.now()}@debug.local`;
+        
+        const { data, error } = await supabaseClient.auth.signInWithOtp({
+          email: testEmail,
+          options: { shouldCreateUser: true }
+        });
+
+        if (error) {
+          if (error.message.includes('Email provider') || error.message.includes('disabled')) {
+            statusDiv.innerHTML = '<div class="status error">❌ Email Provider DESATIVADO no Supabase</div>';
+            addLog('❌ Email Provider desativado', 'error');
+          } else if (error.message.includes('invalid') || error.message.includes('not found')) {
+            statusDiv.innerHTML = '<div class="status ok">✅ Email Provider ATIVADO (email de teste rejeitado, como esperado)</div>';
+            addLog('✅ Email Provider funcional');
+          } else {
+            statusDiv.innerHTML = `<div class="status info">ℹ️ Erro: ${error.message}</div>`;
+            addLog(`Erro do provider: ${error.message}`);
+          }
+        } else {
+          statusDiv.innerHTML = '<div class="status ok">✅ Email Provider ATIVADO (OTP enviarável)</div>';
+          addLog('✅ Email Provider ativado');
+        }
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">❌ ${error.message}</div>`;
+        addLog(`Exceção ao verificar provider: ${error.message}`, 'error');
+      }
+    }
+
+    // Executar ao carregar
+    window.addEventListener('load', () => {
+      addLog('=== Página de Debug Carregada ===');
+      checkConfig();
+      checkClient();
+      checkEmailProvider();
+    });
+  </script>
+</body>
+</html>
