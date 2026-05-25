@@ -3,6 +3,24 @@ const _initSearch = window.location.search;
 if (_initSearch) history.replaceState(null, "", window.location.pathname);
 
 const authState = { email: null };
+let supabaseAccessToken = null;
+
+function getBasePath() {
+  if (!window.location.hostname.endsWith('github.io')) return '';
+  const first = window.location.pathname.split('/').filter(Boolean)[0] || '';
+  return first ? `/${first}` : '';
+}
+
+const BASE_PATH = getBasePath();
+const LOGIN_PATH = `${BASE_PATH}/login.html`;
+const HOME_PATH = `${BASE_PATH}/`;
+
+const cfg = window.APP_CONFIG || {};
+if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY || !window.supabase?.createClient) {
+  throw new Error('APP_CONFIG/Supabase client em falta. Verifica app-config.js e script CDN.');
+}
+
+const supabaseClient = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
 // Update UI based on auth state
 function updateAuthUI() {
@@ -23,20 +41,38 @@ function updateAuthUI() {
   }
 
   try {
-    const meRes = await fetch('/api/auth/me', { credentials: 'include' });
-    if (!meRes.ok) {
-      window.location.href = '/Portal/login.html';
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const session = sessionData?.session;
+    const token = session?.access_token || null;
+    const email = String(session?.user?.email || '').toLowerCase();
+
+    if (!token || !email) {
+      window.location.href = LOGIN_PATH;
       return;
     }
-    const me = await meRes.json();
-    authState.email = String(me.email || '').toLowerCase();
+
+    const { data: allowedRows, error: allowErr } = await supabaseClient
+      .from('authorized_emails')
+      .select('email,active')
+      .eq('email', email)
+      .eq('active', true)
+      .limit(1);
+
+    if (allowErr || !Array.isArray(allowedRows) || allowedRows.length === 0) {
+      await supabaseClient.auth.signOut();
+      window.location.href = LOGIN_PATH;
+      return;
+    }
+
+    supabaseAccessToken = token;
+    authState.email = email;
     updateAuthUI();
   } catch (_err) {
-    window.location.href = '/Portal/login.html';
+    window.location.href = LOGIN_PATH;
   }
 })();
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = `${cfg.SUPABASE_URL}/rest/v1`;
 
 const SITE_OPTIONS = ["Lisboa", "Porto", "Braganca", "Covilha", "Brasil"];
 const COLUMN_KEYS = ["equipa", "email", "codigo_certificacao", "nome_certificacao", "site", "data_certificacao", "data_expiracao", "externo", "status_cert", "saiu", "notas", "acoes"];
@@ -89,8 +125,8 @@ function escapeHtml(value) {
 
 async function logoutUser(e) {
   e?.preventDefault();
-  await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-  window.location.href = '/Portal/login.html';
+  await supabaseClient.auth.signOut();
+  window.location.href = LOGIN_PATH;
 }
 
 function calcExpirado(dateStr) {
@@ -102,6 +138,8 @@ function externoLabel(row) { return row.externo ? "Sim" : ""; }
 function saiuLabel(row) { return row.saiu ? "Sim" : ""; }
 function supabaseHeaders(extra = {}) {
   return {
+    apikey: cfg.SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${supabaseAccessToken || 'invalid'}`,
     "Content-Type": "application/json",
     ...extra
   };

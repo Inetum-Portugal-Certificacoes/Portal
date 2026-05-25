@@ -54,7 +54,25 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app-config.js"></script>
   <script>
+    function getBasePath() {
+      if (!window.location.hostname.endsWith('github.io')) return '';
+      const first = window.location.pathname.split('/').filter(Boolean)[0] || '';
+      return first ? `/${first}` : '';
+    }
+
+    const BASE_PATH = getBasePath();
+    const HOME_PATH = `${BASE_PATH}/`;
+
+    const cfg = window.APP_CONFIG || {};
+    if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY || !window.supabase?.createClient) {
+      throw new Error('APP_CONFIG/Supabase client em falta. Verifica app-config.js e script CDN.');
+    }
+
+    const supabaseClient = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+
     async function login(e) {
       e.preventDefault();
       const email = document.getElementById('email').value.trim().toLowerCase();
@@ -69,19 +87,25 @@
       btn.textContent = 'A validar...';
 
       try {
-        const res = await fetch('/api/auth/login', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        });
+        const { data: authData, error: authErr } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (authErr) throw new Error(authErr.message || 'Credenciais inválidas');
 
-        const payload = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(payload.error || `Erro de autenticação (${res.status})`);
+        const sessionEmail = String(authData?.user?.email || '').toLowerCase();
+        if (!sessionEmail) throw new Error('Sessão inválida. Tenta novamente.');
+
+        const { data: allowedRows, error: allowErr } = await supabaseClient
+          .from('authorized_emails')
+          .select('email,active')
+          .eq('email', sessionEmail)
+          .eq('active', true)
+          .limit(1);
+
+        if (allowErr || !Array.isArray(allowedRows) || allowedRows.length === 0) {
+          await supabaseClient.auth.signOut();
+          throw new Error('Email não autorizado na whitelist');
         }
 
-        window.location.href = '/';
+        window.location.href = HOME_PATH;
       } catch (error) {
         console.error('Erro de login:', error);
         errEl.textContent = `❌ Erro: ${error.message}`;
