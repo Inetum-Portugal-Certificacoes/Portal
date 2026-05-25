@@ -132,6 +132,9 @@ class AuthManager {
       });
       if (error) {
         console.error('[Auth] Erro ao solicitar OTP:', error);
+        if (String(error.message || '').toLowerCase().includes('rate limit')) {
+          throw new Error('email rate limit exceeded');
+        }
         throw error;
       }
       console.log('[Auth] OTP solicitado com sucesso');

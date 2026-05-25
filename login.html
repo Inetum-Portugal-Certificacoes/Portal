@@ -60,7 +60,7 @@
           <button type="submit" class="btn-login" id="btn-verify">Confirmar</button>
         </form>
         <button onclick="backToEmail()" style="width: 100%; padding: 10px; background: transparent; border: 1px solid #8899aa; color: #8899aa; border-radius: 6px; margin-top: 10px; cursor: pointer;">Voltar</button>
-        <p class="info">Verifiquei que não recebeste código? <a href="#" onclick="requestOTP({preventDefault: () => {}})" style="color: #00d4ff; text-decoration: none;">Reenviar</a></p>
+        <p class="info">Verifiquei que não recebeste código? <a id="resendLink" href="#" onclick="requestOTP({preventDefault: () => {}})" style="color: #00d4ff; text-decoration: none;">Reenviar</a></p>
       </div>
     </div>
   </div>
@@ -70,6 +70,58 @@
   <script src="/Portal/auth.js"></script>
   <script>
     let currentEmail = '';
+    const OTP_COOLDOWN_SECONDS = 60;
+    const OTP_LAST_SENT_KEY = 'otp_last_sent_at';
+    let otpCooldownInterval = null;
+
+    function getCooldownRemainingSeconds() {
+      const lastSent = Number(localStorage.getItem(OTP_LAST_SENT_KEY) || 0);
+      if (!lastSent) return 0;
+      const elapsed = Math.floor((Date.now() - lastSent) / 1000);
+      return Math.max(0, OTP_COOLDOWN_SECONDS - elapsed);
+    }
+
+    function renderCooldown(remaining) {
+      const btn = document.getElementById('btn-request');
+      const resendLink = document.getElementById('resendLink');
+      if (!btn) return;
+
+      if (remaining > 0) {
+        btn.disabled = true;
+        btn.textContent = `Aguarda ${remaining}s`;
+        if (resendLink) {
+          resendLink.style.pointerEvents = 'none';
+          resendLink.style.opacity = '0.6';
+          resendLink.textContent = `Reenviar em ${remaining}s`;
+        }
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Enviar Código';
+        if (resendLink) {
+          resendLink.style.pointerEvents = 'auto';
+          resendLink.style.opacity = '1';
+          resendLink.textContent = 'Reenviar';
+        }
+      }
+    }
+
+    function startCooldown() {
+      clearInterval(otpCooldownInterval);
+      renderCooldown(getCooldownRemainingSeconds());
+      otpCooldownInterval = setInterval(() => {
+        const remaining = getCooldownRemainingSeconds();
+        renderCooldown(remaining);
+        if (remaining <= 0) {
+          clearInterval(otpCooldownInterval);
+          otpCooldownInterval = null;
+        }
+      }, 1000);
+    }
+
+    function setOtpSentNow() {
+      localStorage.setItem(OTP_LAST_SENT_KEY, String(Date.now()));
+      startCooldown();
+    }
 
     async function requestOTP(e) {
       e.preventDefault();
@@ -83,6 +135,11 @@
       errEl.classList.add('hidden');
 
       try {
+        const remaining = getCooldownRemainingSeconds();
+        if (remaining > 0) {
+          throw new Error(`Rate limit ativo. Aguarda ${remaining}s e tenta novamente.`);
+        }
+
         console.log('Solicitando OTP para:', email);
         const result = await authManager.requestOTP(email);
         console.log('Resultado requestOTP:', result);
@@ -90,6 +147,7 @@
         if (!result.success) throw new Error(result.error);
 
         currentEmail = email;
+        setOtpSentNow();
         errEl.textContent = '✅ Código enviado! Verifique o seu email.';
         errEl.classList.remove('hidden');
         errEl.style.color = '#51cf66';
@@ -100,11 +158,17 @@
         }, 1000);
       } catch (error) {
         console.error('Erro ao solicitar OTP:', error);
-        errEl.textContent = `❌ Erro: ${error.message}`;
+        const msg = String(error?.message || 'Erro desconhecido');
+        if (msg.toLowerCase().includes('rate limit')) {
+          setOtpSentNow();
+          errEl.textContent = '❌ Limite de envio atingido. Aguarda 60s e tenta novamente.';
+        } else {
+          errEl.textContent = `❌ Erro: ${msg}`;
+        }
         errEl.classList.remove('hidden');
         errEl.style.color = '#ff6b6b';
       } finally {
-        btn.disabled = false;
+        renderCooldown(getCooldownRemainingSeconds());
       }
     }
 
@@ -137,6 +201,10 @@
       document.getElementById('stage-email').classList.remove('hidden');
       document.getElementById('email').focus();
     }
+
+    window.addEventListener('load', () => {
+      startCooldown();
+    });
   </script>
 </body>
 </html>
