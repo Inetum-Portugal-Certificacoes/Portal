@@ -4,6 +4,26 @@ if (_initSearch) history.replaceState(null, "", window.location.pathname);
 
 const authState = { email: null, isAdmin: false };
 let supabaseAccessToken = null;
+const ADMIN_ONLY_ACTION_IDS = [
+  "updateIndicadoresBtn",
+  "exportBtn",
+  "toggleEditBtn",
+  "addRowBtn",
+  "saveAllBtn",
+  "planExportBtn",
+  "planToggleEditBtn",
+  "planAddRowBtn",
+  "planSaveAllBtn"
+];
+
+function updateAdminOnlyActionVisibility() {
+  const isAdmin = Boolean(authState.isAdmin);
+  ADMIN_ONLY_ACTION_IDS.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = isAdmin ? "" : "none";
+  });
+}
 
 function getBasePath() {
   if (!window.location.hostname.endsWith('github.io')) return '';
@@ -38,6 +58,7 @@ function updateAuthUI() {
   if (loginBtn) loginBtn.style.display = isAuthenticated ? 'none' : 'inline-block';
   if (logoutBtn) logoutBtn.style.display = isAuthenticated ? 'inline-block' : 'none';
   if (adminBtn) adminBtn.style.display = isAuthenticated ? 'inline-block' : 'none';
+  updateAdminOnlyActionVisibility();
 }
 
 // Auth check - redireciona para login se não autenticado
@@ -683,6 +704,7 @@ function setupStayCertifiedEdition() {
 
   if (exportBtn) {
     exportBtn.addEventListener("click", () => {
+      if (!authState.isAdmin) return;
       const exportCols   = COLUMN_KEYS.filter(k => k !== "acoes" && k !== "notas");
       const exportLabels = exportCols.map(k => COLUMN_LABELS[k]);
       const today = new Date().toISOString().slice(0, 10);
@@ -716,6 +738,7 @@ function setupStayCertifiedEdition() {
   };
 
   toggleBtn.addEventListener("click", async () => {
+    if (!authState.isAdmin) return;
     if (!editMode) {
       editMode = true;
       toggleBtn.classList.add("active");
@@ -937,6 +960,7 @@ function setupUpdateIndicadoresBtn() {
   btn.title = `Atualizar Indicadores — ${mesNome} ${ano}`;
 
   btn.addEventListener("click", async () => {
+    if (!authState.isAdmin) return;
     if (!stayRows.length) return;
 
     const selectedTeam = filterState.equipa;
@@ -1512,6 +1536,7 @@ function setupPlaneamentoEdition() {
 
   if (exportBtn) {
     exportBtn.addEventListener("click", () => {
+      if (!authState.isAdmin) return;
       const exportCols   = PLAN_COLUMN_KEYS.filter(k => k !== "acoes" && k !== "notas");
       const exportLabels = exportCols.map(k => PLAN_COLUMN_LABELS[k]);
       const today = new Date().toISOString().slice(0, 10);
@@ -1539,6 +1564,7 @@ function setupPlaneamentoEdition() {
   };
 
   toggleBtn.addEventListener("click", async () => {
+    if (!authState.isAdmin) return;
     if (!planEditMode) {
       planEditMode = true;
       toggleBtn.classList.add("active");
