@@ -20,7 +20,8 @@
           <a class="active" href="/Portal/planeamento">Planeamento</a>
           <a href="/Portal/indicadores">Indicadores</a>
           <a href="/Portal/alertas">Alertas</a>
-           <a href="#" onclick="logoutUser(event)" style="color: #ff6b6b; font-weight: 600;">Sair</a>
+          <a id="loginBtn" href="/login.html" style="color: #00d4ff; font-weight: 600;">Entrar</a>
+          <a id="logoutBtn" href="#" onclick="logoutUser(event)" style="color: #ff6b6b; font-weight: 600; display: none;">Sair</a>
         </div>
         <button class="hamburger" id="hamburger" aria-label="Abrir menu">
           <span></span><span></span><span></span>
@@ -113,6 +114,7 @@
       </div>
     </footer>
 
+    <script src="config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="auth.js"></script>
     <script src="script.js"></script>

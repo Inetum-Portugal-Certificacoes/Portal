@@ -2,12 +2,25 @@
 const _initSearch = window.location.search;
 if (_initSearch) history.replaceState(null, "", window.location.pathname);
 
+// Update UI based on auth state
+function updateAuthUI() {
+  const loginBtn = document.getElementById('loginBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const isAuthenticated = authManager?.session?.user?.email;
+  
+  if (loginBtn) loginBtn.style.display = isAuthenticated ? 'none' : 'inline-block';
+  if (logoutBtn) logoutBtn.style.display = isAuthenticated ? 'inline-block' : 'none';
+}
+
 // Auth check - redireciona para login se não autenticado
 (async () => {
   // Se em página de login, skip
-  if (window.location.pathname.endsWith('/login.html') || window.location.pathname.endsWith('/login')) return;
+  if (window.location.pathname.endsWith('/login.html') || window.location.pathname.endsWith('/login')) {
+    updateAuthUI();
+    return;
+  }
   
-  if (!authManager.session) {
+  if (!authManager?.session) {
     window.location.href = (window.__APP_BASE || '/') + 'login.html';
     return;
   }
@@ -18,6 +31,8 @@ if (_initSearch) history.replaceState(null, "", window.location.pathname);
     window.location.href = (window.__APP_BASE || '/') + 'login.html?error=not_authorized';
     return;
   }
+  
+  updateAuthUI();
 })();
 
 const API_BASE_URL = 'https://gsqnnfaxmxzzjlrwmfth.supabase.co/rest/v1';

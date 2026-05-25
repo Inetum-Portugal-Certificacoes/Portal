@@ -1,6 +1,11 @@
-// Autenticação OTP com Supabase - GitHub Pages estático
-const SUPABASE_URL = 'https://gsqnnfaxmxzzjlrwmfth.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdzc25uZmF4bXh6empscndtZnRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk3NDc5OTksImV4cCI6MjA1NTMyNzk5OX0.4A9GhMiCpHEU8H-F3p0d1ij-f1EH8hqRmK6Z0cOWZzU';
+// Autenticação OTP com Supabase
+// Configuração carregada de window.__SUPABASE_CONFIG__ (injetado no HTML)
+if (!window.__SUPABASE_CONFIG__) {
+  console.error('Supabase config not loaded. Please ensure config is injected before auth.js');
+}
+
+const SUPABASE_URL = window.__SUPABASE_CONFIG__?.SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = window.__SUPABASE_CONFIG__?.SUPABASE_ANON_KEY || '';
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
