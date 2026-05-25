@@ -2,9 +2,7 @@
 const _initSearch = window.location.search;
 if (_initSearch) history.replaceState(null, "", window.location.pathname);
 
-const SUPABASE_URL = "https://tkguljltsuxwftmnbavo.supabase.co";
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRrZ3Vsamx0c3V4d2Z0bW5iYXZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4NDQzMTgsImV4cCI6MjA5NDQyMDMxOH0.RxemxZ9TN39hmxSqwWNEl8oVf4tZSuKZvqctHW6PwWA";
+const API_BASE_URL = window.__APP_API_BASE_URL || "/api";
 
 const SITE_OPTIONS = ["Lisboa", "Porto", "Braganca", "Covilha", "Brasil"];
 const COLUMN_KEYS = ["equipa", "email", "codigo_certificacao", "nome_certificacao", "site", "data_certificacao", "data_expiracao", "externo", "status_cert", "saiu", "notas", "acoes"];
@@ -62,7 +60,7 @@ function rowStateLabel(row) { return row.expirado ? "Expirado" : "Ativo"; }
 function externoLabel(row) { return row.externo ? "Sim" : ""; }
 function saiuLabel(row) { return row.saiu ? "Sim" : ""; }
 function supabaseHeaders(extra = {}) {
-  return { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json", ...extra };
+  return { "Content-Type": "application/json", ...extra };
 }
 
 async function loadStayCertifiedTable() {
@@ -70,13 +68,13 @@ async function loadStayCertifiedTable() {
   if (!tbody) return;
   try {
     const url =
-      `${SUPABASE_URL}/rest/v1/stay_certified` +
+      `${API_BASE_URL}/stay_certified` +
       "?select=equipa,email,codigo_certificacao,nome_certificacao,site,data_expiracao,expirado,data_certificacao,externo,saiu" +
       "&order=data_expiracao.asc&limit=1000";
     const res = await fetch(url, { headers: supabaseHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     stayRows = await res.json();
-    const nr = await fetch(`${SUPABASE_URL}/rest/v1/stay_certified_notas?select=*&order=created_at.asc`, { headers: supabaseHeaders() });
+    const nr = await fetch(`${API_BASE_URL}/stay_certified_notas?select=*&order=created_at.asc`, { headers: supabaseHeaders() });
     stayNotes = nr.ok ? await nr.json() : [];
     buildStayDataLists(stayRows);
     renderTeamTiles(stayRows);
@@ -337,7 +335,7 @@ async function saveExistingRow(idx) {
   const row = displayedRows[idx];
   const payload = collectRowInput(idx);
   const query = `equipa=eq.${encodeURIComponent(row.equipa)}&email=eq.${encodeURIComponent(row.email)}&codigo_certificacao=eq.${encodeURIComponent(row.codigo_certificacao)}`;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/stay_certified?${query}`, { method: "PATCH", headers: supabaseHeaders({ Prefer: "return=representation" }), body: JSON.stringify(payload) });
+  const res = await fetch(`${API_BASE_URL}/stay_certified?${query}`, { method: "PATCH", headers: supabaseHeaders({ Prefer: "return=representation" }), body: JSON.stringify(payload) });
   if (!res.ok) throw new Error(`PATCH failed ${res.status}`);
 }
 async function deleteExistingRow(idx) {
@@ -345,8 +343,8 @@ async function deleteExistingRow(idx) {
   if (!await _modal.confirm(`Eliminar o registo ${row.email} / ${row.codigo_certificacao}?`, "Confirmar eliminação")) return;
   const query = `equipa=eq.${encodeURIComponent(row.equipa)}&email=eq.${encodeURIComponent(row.email)}&codigo_certificacao=eq.${encodeURIComponent(row.codigo_certificacao)}`;
   const [res] = await Promise.all([
-    fetch(`${SUPABASE_URL}/rest/v1/stay_certified?${query}`, { method: "DELETE", headers: supabaseHeaders() }),
-    fetch(`${SUPABASE_URL}/rest/v1/stay_certified_notas?${query}`, { method: "DELETE", headers: supabaseHeaders() })
+    fetch(`${API_BASE_URL}/stay_certified?${query}`, { method: "DELETE", headers: supabaseHeaders() }),
+    fetch(`${API_BASE_URL}/stay_certified_notas?${query}`, { method: "DELETE", headers: supabaseHeaders() })
   ]);
   if (!res.ok) throw new Error(`DELETE failed ${res.status}`);
   stayNotes = stayNotes.filter(n => !(n.equipa === row.equipa && n.email === row.email && n.codigo_certificacao === row.codigo_certificacao));
@@ -396,7 +394,7 @@ async function insertNewRow() {
     await _modal.alert("Já existe um registo com esta combinação de equipa, email e código de certificação.", "Registo duplicado");
     return;
   }
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/stay_certified`, { method: "POST", headers: supabaseHeaders({ Prefer: "return=representation" }), body: JSON.stringify(payload) });
+  const res = await fetch(`${API_BASE_URL}/stay_certified`, { method: "POST", headers: supabaseHeaders({ Prefer: "return=representation" }), body: JSON.stringify(payload) });
   if (!res.ok) throw new Error(`POST failed ${res.status}`);
   newRowDraft = null;
 }
@@ -849,7 +847,7 @@ function setupUpdateIndicadoresBtn() {
 
     btn.disabled = true;
     try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/indicadores`, {
+      const res = await fetch(`${API_BASE_URL}/indicadores`, {
         method: "POST",
         headers: { ...supabaseHeaders(), "Prefer": "resolution=merge-duplicates,return=minimal" },
         body: JSON.stringify({ ano, mes: mesNum, equipa: selectedTeam.trim(), certificacoes, consultores })
@@ -1102,7 +1100,7 @@ async function savePlanRow(idx) {
     updated_at: new Date().toISOString()
   };
   const query = `email=eq.${encodeURIComponent(row.email)}&codigo_certificacao=eq.${encodeURIComponent(row.codigo_certificacao)}`;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/planeamento?${query}`,
+  const res = await fetch(`${API_BASE_URL}/planeamento?${query}`,
     { method: "PATCH", headers: supabaseHeaders({ Prefer: "return=representation" }), body: JSON.stringify(payload) });
   if (!res.ok) throw new Error(`PATCH failed ${res.status}`);
 }
@@ -1112,8 +1110,8 @@ async function deletePlanRow(idx) {
   if (!await _modal.confirm(`Eliminar o registo ${row.email} / ${row.codigo_certificacao}?`, "Confirmar eliminação")) return;
   const query = `equipa=eq.${encodeURIComponent(row.equipa)}&email=eq.${encodeURIComponent(row.email)}&codigo_certificacao=eq.${encodeURIComponent(row.codigo_certificacao)}`;
   const [res] = await Promise.all([
-    fetch(`${SUPABASE_URL}/rest/v1/planeamento?${query}`, { method: "DELETE", headers: supabaseHeaders() }),
-    fetch(`${SUPABASE_URL}/rest/v1/planeamento_notas?${query}`, { method: "DELETE", headers: supabaseHeaders() })
+    fetch(`${API_BASE_URL}/planeamento?${query}`, { method: "DELETE", headers: supabaseHeaders() }),
+    fetch(`${API_BASE_URL}/planeamento_notas?${query}`, { method: "DELETE", headers: supabaseHeaders() })
   ]);
   if (!res.ok) throw new Error(`DELETE failed ${res.status}`);
   planNotes = planNotes.filter(n => !(n.equipa === row.equipa && n.email === row.email && n.codigo_certificacao === row.codigo_certificacao));
@@ -1139,7 +1137,7 @@ async function insertPlanRow() {
     await _modal.alert("Já existe um registo com esta combinação de email e código.", "Registo duplicado");
     return;
   }
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/planeamento`,
+  const res = await fetch(`${API_BASE_URL}/planeamento`,
     { method: "POST", headers: supabaseHeaders({ Prefer: "return=representation" }), body: JSON.stringify(payload) });
   if (!res.ok) throw new Error(`POST failed ${res.status}`);
   planNewRowDraft = null;
@@ -1149,13 +1147,13 @@ async function loadPlaneamentoTable() {
   const tbody = document.getElementById("planTableBody");
   if (!tbody) return;
   try {
-    const url = `${SUPABASE_URL}/rest/v1/planeamento` +
+    const url = `${API_BASE_URL}/planeamento` +
       `?select=equipa,quarter,email,codigo_certificacao,nome_certificacao,site,mes_certificacao,status` +
       `&order=email.asc&limit=1000`;
     const res = await fetch(url, { headers: supabaseHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     planRows = await res.json();
-    const nr = await fetch(`${SUPABASE_URL}/rest/v1/planeamento_notas?select=*&order=created_at.asc`, { headers: supabaseHeaders() });
+    const nr = await fetch(`${API_BASE_URL}/planeamento_notas?select=*&order=created_at.asc`, { headers: supabaseHeaders() });
     planNotes = nr.ok ? await nr.json() : [];
     buildPlanDataLists(planRows);
     renderPlanTeamTiles(planRows);
@@ -1339,7 +1337,7 @@ function openNotesPopover(equipa, email, codigo, anchorEl, table) {
 }
 
 async function addNote(equipa, email, codigo, nota, table) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`,
+  const res = await fetch(`${API_BASE_URL}/${table}`,
     { method: "POST", headers: supabaseHeaders({ Prefer: "return=representation" }),
       body: JSON.stringify({ equipa, email, codigo_certificacao: codigo, nota }) });
   if (!res.ok) throw new Error(`POST note failed ${res.status}`);
@@ -1361,7 +1359,7 @@ async function addNote(equipa, email, codigo, nota, table) {
 }
 
 async function deleteNote(id_nota, equipa, email, codigo, table) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id_nota=eq.${encodeURIComponent(id_nota)}`,
+  const res = await fetch(`${API_BASE_URL}/${table}?id_nota=eq.${encodeURIComponent(id_nota)}`,
     { method: "DELETE", headers: supabaseHeaders() });
   if (!res.ok) throw new Error(`DELETE note failed ${res.status}`);
   _notesSetArr(table, _notesGetArr(table).filter(n => n.id_nota !== id_nota));
@@ -1593,7 +1591,7 @@ async function loadIndOverview(teamFilter = "") {
   const valid    = "expirado=not.is.true";
   const expired  = "expirado=is.true";
   const team     = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
-  const base     = `${SUPABASE_URL}/rest/v1/stay_certified`;
+  const base     = `${API_BASE_URL}/stay_certified`;
 
   try {
     const [resCount, resRows, resExpired] = await Promise.all([
@@ -1625,8 +1623,8 @@ async function loadIndTeams() {
 
   try {
     const [resCert, resPlan] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/stay_certified?select=equipa&expirado=not.is.true&limit=2000`, { headers: supabaseHeaders() }),
-      fetch(`${SUPABASE_URL}/rest/v1/planeamento?select=equipa&status=neq.Cancelado&limit=2000`, { headers: supabaseHeaders() })
+      fetch(`${API_BASE_URL}/stay_certified?select=equipa&expirado=not.is.true&limit=2000`, { headers: supabaseHeaders() }),
+      fetch(`${API_BASE_URL}/planeamento?select=equipa&status=neq.Cancelado&limit=2000`, { headers: supabaseHeaders() })
     ]);
     const certRows = resCert.ok ? await resCert.json() : [];
     const planRows = resPlan.ok ? await resPlan.json() : [];
@@ -1670,7 +1668,7 @@ async function loadIndChart(teamFilter = "") {
 
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/indicadores?select=ano,mes,equipa,certificacoes,consultores&order=ano,mes&limit=5000`,
+      `${API_BASE_URL}/indicadores?select=ano,mes,equipa,certificacoes,consultores&order=ano,mes&limit=5000`,
       { headers: supabaseHeaders() }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
@@ -1812,7 +1810,7 @@ async function loadIndNewCertsChart(teamFilter = "") {
 
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/stay_certified?select=equipa,email,codigo_certificacao,nome_certificacao,data_certificacao,data_expiracao,expirado${team}&limit=5000`,
+      `${API_BASE_URL}/stay_certified?select=equipa,email,codigo_certificacao,nome_certificacao,data_certificacao,data_expiracao,expirado${team}&limit=5000`,
       { headers: supabaseHeaders() }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -2136,8 +2134,8 @@ async function loadProjPlaneamento(team) {
   const teamQ = team ? `&equipa=eq.${encodeURIComponent(team)}` : "";
   try {
     const [resCert, resPlan] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/stay_certified?select=email${teamQ}&expirado=not.is.true&limit=5000`, { headers: supabaseHeaders() }),
-      fetch(`${SUPABASE_URL}/rest/v1/planeamento?select=email${teamQ}&status=neq.Cancelado&limit=5000`,    { headers: supabaseHeaders() })
+      fetch(`${API_BASE_URL}/stay_certified?select=email${teamQ}&expirado=not.is.true&limit=5000`, { headers: supabaseHeaders() }),
+      fetch(`${API_BASE_URL}/planeamento?select=email${teamQ}&status=neq.Cancelado&limit=5000`,    { headers: supabaseHeaders() })
     ]);
     const certRows = resCert.ok ? await resCert.json() : [];
     const planRows = resPlan.ok ? await resPlan.json() : [];
@@ -2249,13 +2247,13 @@ async function loadHomeTotals() {
     const in30  = new Date(Date.now() + 30*24*60*60*1000).toISOString().slice(0, 10);
     const valid = `expirado=not.is.true`;
     const [resCerts, resPlan, resAlert15, resAlert30, resRanking, resCodigos, resSites] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/stay_certified?select=email&${valid}&limit=1`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/planeamento?select=email&status=eq.Planeado&limit=1`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/stay_certified?select=email&${valid}&data_expiracao=gte.${today}&data_expiracao=lte.${in15}&limit=1`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/stay_certified?select=email&${valid}&data_expiracao=gt.${in15}&data_expiracao=lte.${in30}&limit=1`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/stay_certified?select=email&${valid}&limit=2000`, { headers: supabaseHeaders() }),
-      fetch(`${SUPABASE_URL}/rest/v1/stay_certified?select=codigo_certificacao,nome_certificacao&${valid}&limit=2000`, { headers: supabaseHeaders() }),
-      fetch(`${SUPABASE_URL}/rest/v1/stay_certified?select=site&${valid}&limit=2000`, { headers: supabaseHeaders() })
+      fetch(`${API_BASE_URL}/stay_certified?select=email&${valid}&limit=1`, { headers }),
+      fetch(`${API_BASE_URL}/planeamento?select=email&status=eq.Planeado&limit=1`, { headers }),
+      fetch(`${API_BASE_URL}/stay_certified?select=email&${valid}&data_expiracao=gte.${today}&data_expiracao=lte.${in15}&limit=1`, { headers }),
+      fetch(`${API_BASE_URL}/stay_certified?select=email&${valid}&data_expiracao=gt.${in15}&data_expiracao=lte.${in30}&limit=1`, { headers }),
+      fetch(`${API_BASE_URL}/stay_certified?select=email&${valid}&limit=2000`, { headers: supabaseHeaders() }),
+      fetch(`${API_BASE_URL}/stay_certified?select=codigo_certificacao,nome_certificacao&${valid}&limit=2000`, { headers: supabaseHeaders() }),
+      fetch(`${API_BASE_URL}/stay_certified?select=site&${valid}&limit=2000`, { headers: supabaseHeaders() })
     ]);
 
     const parseCR = (res) => {
@@ -2277,15 +2275,15 @@ async function loadHomeTotals() {
     // Navbar alert badge (all pages)
     setNavAlertBadge(alertRed, alertOrange);
 
-    // Ranking top 10
+    // Ranking top 5
     const rankingEl = document.getElementById("homeRanking");
     if (rankingEl && resRanking.ok) {
       const allRows = await resRanking.json();
       const counts = {};
       allRows.forEach(r => { const e = (r.email || "").trim(); if (e) counts[e] = (counts[e] || 0) + 1; });
-      const top10 = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      const top5 = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
       const medalClass = ["gold", "silver", "bronze"];
-      rankingEl.innerHTML = top10.map(([email, n], i) =>
+      rankingEl.innerHTML = top5.map(([email, n], i) =>
         `<li style="cursor:pointer" data-drill-email="${escapeHtml(email)}">
           <span class="ranking-pos ${medalClass[i] || ""}">${i + 1}</span>
           <span class="ranking-email">${escapeHtml(email)}</span>
@@ -2466,7 +2464,7 @@ async function loadAlertCounters(teamFilter = "") {
 
   const hdCount = supabaseHeaders({ Prefer: "count=exact" });
   const hdData  = supabaseHeaders();
-  const baseUrl = `${SUPABASE_URL}/rest/v1/stay_certified`;
+  const baseUrl = `${API_BASE_URL}/stay_certified`;
   const valid   = `expirado=not.is.true`;
   const team    = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
 
@@ -2624,7 +2622,7 @@ async function loadPlanAlerts(teamFilter = "") {
 
   try {
     const rows = await fetch(
-      `${SUPABASE_URL}/rest/v1/planeamento?select=equipa,email,codigo_certificacao,mes_certificacao,quarter&status=eq.Planeado${team}&limit=2000`,
+      `${API_BASE_URL}/planeamento?select=equipa,email,codigo_certificacao,mes_certificacao,quarter&status=eq.Planeado${team}&limit=2000`,
       { headers: supabaseHeaders() }
     ).then(r => r.json());
 
@@ -2761,8 +2759,8 @@ async function loadAlertTeams() {
 
   try {
     const [resCert, resPlan] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/stay_certified?select=equipa&expirado=not.is.true&limit=2000`, { headers: supabaseHeaders() }),
-      fetch(`${SUPABASE_URL}/rest/v1/planeamento?select=equipa&status=neq.Cancelado&limit=2000`, { headers: supabaseHeaders() })
+      fetch(`${API_BASE_URL}/stay_certified?select=equipa&expirado=not.is.true&limit=2000`, { headers: supabaseHeaders() }),
+      fetch(`${API_BASE_URL}/planeamento?select=equipa&status=neq.Cancelado&limit=2000`, { headers: supabaseHeaders() })
     ]);
 
     const certRows = resCert.ok ? await resCert.json() : [];
@@ -2812,9 +2810,10 @@ loadPlanAlerts();
     const hd = supabaseHeaders({ Prefer: "count=exact" });
     const parseCR = r => { const m = (r.headers.get("content-range")||"").match(/\/(\d+)$/); return m ? Number(m[1]) : 0; };
     const [r15, r30] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/stay_certified?select=email&${valid}&data_expiracao=gte.${today}&data_expiracao=lte.${in15}&limit=1`, { headers: hd }),
-      fetch(`${SUPABASE_URL}/rest/v1/stay_certified?select=email&${valid}&data_expiracao=gt.${in15}&data_expiracao=lte.${in30}&limit=1`, { headers: hd })
+      fetch(`${API_BASE_URL}/stay_certified?select=email&${valid}&data_expiracao=gte.${today}&data_expiracao=lte.${in15}&limit=1`, { headers: hd }),
+      fetch(`${API_BASE_URL}/stay_certified?select=email&${valid}&data_expiracao=gt.${in15}&data_expiracao=lte.${in30}&limit=1`, { headers: hd })
     ]);
     setNavAlertBadge(parseCR(r15), parseCR(r30));
   } catch(e) { /* silently fail */ }
 })();
+
