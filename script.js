@@ -35,7 +35,8 @@ function updateAuthUI() {
   updateAuthUI();
 })();
 
-const API_BASE_URL = 'https://gsqnnfaxmxzzjlrwmfth.supabase.co/rest/v1';
+const SUPABASE_BASE_URL = (window.__SUPABASE_CONFIG__?.SUPABASE_URL || '').replace(/\/+$/, '');
+const API_BASE_URL = `${SUPABASE_BASE_URL}/rest/v1`;
 
 const SITE_OPTIONS = ["Lisboa", "Porto", "Braganca", "Covilha", "Brasil"];
 const COLUMN_KEYS = ["equipa", "email", "codigo_certificacao", "nome_certificacao", "site", "data_certificacao", "data_expiracao", "externo", "status_cert", "saiu", "notas", "acoes"];
