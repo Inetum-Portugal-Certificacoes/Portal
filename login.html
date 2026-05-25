@@ -65,8 +65,9 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="auth.js"></script>
   <script>
-    const API_BASE = window.location.origin;
     let currentEmail = '';
 
     async function requestOTP(e) {
@@ -81,16 +82,8 @@
       err.classList.add('hidden');
 
       try {
-        const res = await fetch(`${API_BASE}/api/auth/request-otp`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
-        });
-
-        if (!res.ok) {
-          const body = await res.json();
-          throw new Error(body.error || `HTTP ${res.status}`);
-        }
+        const result = await authManager.requestOTP(email);
+        if (!result.success) throw new Error(result.error);
 
         currentEmail = email;
         document.getElementById('stage-email').classList.add('hidden');
@@ -115,19 +108,10 @@
       err.classList.add('hidden');
 
       try {
-        const res = await fetch(`${API_BASE}/api/auth/verify-otp`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: currentEmail, token: otp }),
-          credentials: 'include'
-        });
+        const result = await authManager.verifyOTP(currentEmail, otp);
+        if (!result.success) throw new Error(result.error);
 
-        if (!res.ok) {
-          const body = await res.json();
-          throw new Error(body.error || `HTTP ${res.status}`);
-        }
-
-        window.location.href = '/';
+        window.location.href = window.__APP_BASE || '/';
       } catch (err) {
         err.textContent = `Erro: ${err.message}`;
         err.classList.remove('hidden');

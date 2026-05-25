@@ -2,7 +2,25 @@
 const _initSearch = window.location.search;
 if (_initSearch) history.replaceState(null, "", window.location.pathname);
 
-const API_BASE_URL = window.__APP_API_BASE_URL || "/api";
+// Auth check - redireciona para login se não autenticado
+(async () => {
+  // Se em página de login, skip
+  if (window.location.pathname.endsWith('/login.html') || window.location.pathname.endsWith('/login')) return;
+  
+  if (!authManager.session) {
+    window.location.href = (window.__APP_BASE || '/') + 'login.html';
+    return;
+  }
+  
+  const authorized = await authManager.isUserAuthorized();
+  if (!authorized) {
+    await authManager.logout();
+    window.location.href = (window.__APP_BASE || '/') + 'login.html?error=not_authorized';
+    return;
+  }
+})();
+
+const API_BASE_URL = 'https://gsqnnfaxmxzzjlrwmfth.supabase.co/rest/v1';
 
 const SITE_OPTIONS = ["Lisboa", "Porto", "Braganca", "Covilha", "Brasil"];
 const COLUMN_KEYS = ["equipa", "email", "codigo_certificacao", "nome_certificacao", "site", "data_certificacao", "data_expiracao", "externo", "status_cert", "saiu", "notas", "acoes"];
@@ -52,6 +70,13 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
+async function logoutUser(e) {
+  e?.preventDefault();
+  await authManager.logout();
+  window.location.href = (window.__APP_BASE || '/') + 'login.html';
+}
+
 function calcExpirado(dateStr) {
   if (!dateStr) return false;
   return new Date(dateStr) < new Date(new Date().toISOString().slice(0, 10));
@@ -60,7 +85,12 @@ function rowStateLabel(row) { return row.expirado ? "Expirado" : "Ativo"; }
 function externoLabel(row) { return row.externo ? "Sim" : ""; }
 function saiuLabel(row) { return row.saiu ? "Sim" : ""; }
 function supabaseHeaders(extra = {}) {
-  return { "Content-Type": "application/json", ...extra };
+  const token = authManager.getAccessToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token && { "Authorization": `Bearer ${token}` }),
+    ...extra
+  };
 }
 
 async function loadStayCertifiedTable() {
