@@ -2685,12 +2685,6 @@ async function handleAdminCreateUser(e) {
   e.preventDefault();
   if (!authState.isAdmin) return;
 
-  // User creation requires the private backend endpoint (/api/admin/users).
-  if (window.location.hostname.endsWith('github.io')) {
-    setAdminFeedback("Criação de utilizadores disponível apenas no servidor privado. Abre em http://localhost:3000/admin após iniciar npm run start:private.", "error");
-    return;
-  }
-
   const emailEl = document.getElementById("adminNewEmail");
   const passEl = document.getElementById("adminNewPassword");
   const activeEl = document.getElementById("adminNewActive");
@@ -2703,36 +2697,63 @@ async function handleAdminCreateUser(e) {
   const active = Boolean(activeEl.checked);
   const isAdmin = Boolean(adminEl.checked);
 
-  if (!email || !password) {
-    setAdminFeedback("Indica email e password.", "error");
+  if (!email) {
+    setAdminFeedback("Indica um email válido.", "error");
     return;
   }
-  if (password.length < 8) {
+
+  // Password is optional. If provided, require minimum strength.
+  if (password && password.length < 8) {
     setAdminFeedback("A password deve ter pelo menos 8 caracteres.", "error");
     return;
   }
 
   if (submitBtn) submitBtn.disabled = true;
-  setAdminFeedback("A criar utilizador…", "info");
+  setAdminFeedback("A atualizar whitelist…", "info");
 
   try {
-    const res = await fetch("/api/admin/users", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(supabaseAccessToken ? { Authorization: `Bearer ${supabaseAccessToken}` } : {})
-      },
-      body: JSON.stringify({ email, password, active, is_admin: isAdmin })
-    });
+    let authCreated = false;
+    let authCreationWarning = "";
 
-    let payload = null;
-    try { payload = await res.json(); } catch { payload = null; }
-    if (!res.ok) {
-      const msg = payload?.error || payload?.message || `HTTP ${res.status}`;
-      throw new Error(msg);
+    // If we are on private server and password is provided, try creating Auth user too.
+    const canTryPrivateAuth = !window.location.hostname.endsWith("github.io") && Boolean(password);
+    if (canTryPrivateAuth) {
+      try {
+        const res = await fetch("/api/admin/users", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(supabaseAccessToken ? { Authorization: `Bearer ${supabaseAccessToken}` } : {})
+          },
+          body: JSON.stringify({ email, password, active, is_admin: isAdmin })
+        });
+
+        let payload = null;
+        try { payload = await res.json(); } catch { payload = null; }
+        if (res.ok) {
+          authCreated = true;
+        } else {
+          authCreationWarning = payload?.error || payload?.message || `HTTP ${res.status}`;
+        }
+      } catch (authErr) {
+        authCreationWarning = authErr?.message || "Falha ao criar conta Auth";
+      }
     }
 
-    setAdminFeedback(`Utilizador ${email} criado/atualizado com sucesso.`, "success");
+    // Always ensure whitelist update, even if private API is unavailable.
+    const { error: upsertErr } = await supabaseClient
+      .from("authorized_emails")
+      .upsert({ email, active, is_admin: isAdmin }, { onConflict: "email" });
+    if (upsertErr) throw upsertErr;
+
+    if (authCreated) {
+      setAdminFeedback(`Utilizador ${email} criado no Auth e whitelist atualizada.`, "success");
+    } else if (authCreationWarning) {
+      setAdminFeedback(`Whitelist atualizada para ${email}. Nota: conta Auth não foi criada (${authCreationWarning}).`, "info");
+    } else {
+      setAdminFeedback(`Whitelist atualizada para ${email}.`, "success");
+    }
+
     emailEl.value = "";
     passEl.value = "";
     activeEl.checked = true;
