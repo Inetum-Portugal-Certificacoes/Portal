@@ -2426,28 +2426,29 @@ async function loadHomeTotals() {
     // Navbar alert badge (all pages)
     setNavAlertBadge(alertRed, alertOrange);
 
-    // Ranking top 5
+    // Ranking top 10
     const rankingEl = document.getElementById("homeRanking");
     if (rankingEl && resRanking.ok) {
       const allRows = await resRanking.json();
       const counts = {};
       allRows.forEach(r => { const e = (r.email || "").trim(); if (e) counts[e] = (counts[e] || 0) + 1; });
-      const top5 = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const top10 = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
       const medalClass = ["gold", "silver", "bronze"];
-      rankingEl.innerHTML = top5.map(([email, n], i) =>
+      rankingEl.innerHTML = top10.map(([email, n], i) =>
         `<li style="cursor:pointer" data-drill-email="${escapeHtml(email)}">
           <span class="ranking-pos ${medalClass[i] || ""}">${i + 1}</span>
           <span class="ranking-email">${escapeHtml(email)}</span>
           <span class="ranking-count">${n}</span>
         </li>`
       ).join("") || "<li class='ranking-loading'>Sem dados.</li>";
-      rankingEl.addEventListener("click", e => {
+
+      rankingEl.onclick = (e) => {
         const li = e.target.closest("[data-drill-email]");
         if (li) {
           sessionStorage.setItem("drillScrollTo", "homeRanking");
           window.location.href = appPath(`/Portal/certificacoes?filter_email=${encodeURIComponent(li.dataset.drillEmail)}`);
         }
-      });
+      };
     }
 
     // Gráfico distribuição por código
