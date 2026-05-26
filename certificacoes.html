@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt-PT">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Certificações | Portal Certificacoes</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css" />
+  </head>
+  <body>
+    <div class="scroll-progress" id="scrollProgress"></div>
+    <nav class="navbar" id="navbar">
+      <div class="container">
+        <a href="index.html"><img class="navbar-logo" src="assets/portal-logo.svg" alt="Portal" /></a>
+        <div class="navbar-links" id="navLinks">
+          <a href="index.html">Home</a>
+          <a class="active" href="certificacoes.html">Certificações</a>
+          <a href="planeamento.html">Planeamento</a>
+          <a href="indicadores.html">Indicadores</a>
+          <a href="alertas.html">Alertas</a>
+          <a id="adminBtn" href="admin.html" style="display: none;">Admin</a>
+          <a id="loginBtn" href="login.html" style="color: #00d4ff; font-weight: 600;">Entrar</a>
+          <a id="logoutBtn" href="#" onclick="logoutUser(event)" style="color: #ff6b6b; font-weight: 600; display: none;">Sair</a>
+        </div>
+        <button class="hamburger" id="hamburger" aria-label="Abrir menu">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </nav>
+
+    <section class="page-hero">
+      <div class="hero-bg"></div>
+      <div class="particles" id="particles"></div>
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <span class="badge-label">Portal Certificacoes</span>
+        <h1>Certificações</h1>
+        <p class="hero-sub">Gestão e acompanhamento das certificações Stay Certified por equipa</p>
+      </div>
+    </section>
+
+    <main class="main-content">
+      <div class="container-wide">
+
+        <section class="content-section team-section-centered reveal">
+          <div class="section-title">
+            <h2>Equipas</h2>
+            <p>Seleciona uma equipa para filtrar as certificações</p>
+          </div>
+          <div id="teamTiles" class="team-tiles-grid"></div>
+        </section>
+
+      </div>
+
+      <section class="content-section cert-section-full" id="certPanel">
+          <div class="glass-panel">
+            <div class="panel-head">
+              <h2>Certificações</h2>
+              <div class="actions">
+                <span id="filteredCount" class="counter">0 / 0</span>
+                <button id="updateIndicadoresBtn" class="icon-btn" type="button" title="Atualizar Indicadores" aria-label="Atualizar Indicadores">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                </button>
+                <button id="exportBtn" class="icon-btn" type="button" title="Exportar para Excel" aria-label="Exportar para Excel">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </button>
+                <button id="toggleEditBtn" class="icon-btn" type="button" title="Modo de edição" aria-label="Modo de edição">✎</button>
+                <button id="addRowBtn" class="icon-btn hidden" type="button" title="Adicionar registo" aria-label="Adicionar registo">＋</button>
+                <button id="saveAllBtn" class="icon-btn hidden" type="button" title="Guardar alterações" aria-label="Guardar alterações">✔</button>
+              </div>
+            </div>
+            <div id="colToggles" class="col-toggles"></div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th class="col-equipa" data-sort="equipa">Equipa</th>
+                    <th class="col-email" data-sort="email">Email</th>
+                    <th class="col-codigo_certificacao" data-sort="codigo_certificacao">Código</th>
+                    <th class="col-nome_certificacao" data-sort="nome_certificacao">Certificação</th>
+                    <th class="col-site" data-sort="site">Site</th>
+                    <th class="col-data_certificacao" data-sort="data_certificacao">Data Certificação</th>
+                    <th class="col-data_expiracao" data-sort="data_expiracao">Válida até</th>
+                    <th class="col-externo" data-sort="externo">Externo</th>
+                    <th class="col-status_cert" data-sort="status_cert">Status</th>
+                    <th class="col-saiu" data-sort="saiu">Saiu</th>
+                    <th class="col-notas">Notas</th>
+                    <th class="col-acoes">Ações</th>
+                  </tr>
+                  <tr class="filter-row">
+                    <th class="col-equipa"><input data-filter="equipa" placeholder="⌕" /></th>
+                    <th class="col-email"><input data-filter="email" placeholder="⌕" /></th>
+                    <th class="col-codigo_certificacao"><input data-filter="codigo_certificacao" placeholder="⌕" /></th>
+                    <th class="col-nome_certificacao"><input data-filter="nome_certificacao" placeholder="⌕" /></th>
+                    <th class="col-site"><input data-filter="site" placeholder="⌕" /></th>
+                    <th class="col-data_certificacao"><input data-filter="data_certificacao" placeholder="⌕" /></th>
+                    <th class="col-data_expiracao"><input data-filter="data_expiracao" placeholder="⌕" /></th>
+                    <th class="col-externo"><input data-filter="externo" placeholder="⌕" /></th>
+                    <th class="col-status_cert"><input data-filter="status_cert" placeholder="⌕" /></th>
+                    <th class="col-saiu"><input data-filter="saiu" placeholder="⌕" /></th>
+                    <th class="col-notas"></th>
+                    <th class="col-acoes"></th>
+                  </tr>
+                </thead>
+                <tbody id="stayTableBody">
+                  <tr><td colspan="11">A carregar registos...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <img class="footer-logo" src="assets/portal-logo.svg" alt="Portal" />
+        </div>
+        <p class="footer-copy">© 2026 Portal Certificacoes. All rights reserved.</p>
+      </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app-config.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>

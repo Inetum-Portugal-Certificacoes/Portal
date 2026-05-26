@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Credentials & deployment secrets (contain tokens)
+.env
+
+# Local tool metadata
+.claude/
+
+# Data files
+Carregamento/
+
+# OS
+.DS_Store
+Thumbs.db

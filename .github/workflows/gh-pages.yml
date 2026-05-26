@@ -1,0 +1,61 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build for GitHub Pages
+        run: |
+          set -e
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          BASE="/${REPO_NAME}"
+          mkdir -p dist
+
+          cp styles.css dist/
+          cp script.js dist/
+          cp app-config.js dist/
+          cp login.html dist/
+          cp -r assets dist/
+
+          for f in *.html; do
+            sed \
+              -e "s|href=\"/\"|href=\"${BASE}/\"|g" \
+              -e "s|href=\"/login\"|href=\"${BASE}/login.html\"|g" \
+              -e "s|href=\"/certificacoes\"|href=\"${BASE}/certificacoes\"|g" \
+              -e "s|href=\"/planeamento\"|href=\"${BASE}/planeamento\"|g" \
+              -e "s|href=\"/indicadores\"|href=\"${BASE}/indicadores\"|g" \
+              -e "s|href=\"/alertas\"|href=\"${BASE}/alertas\"|g" \
+              -e "s|src=\"/assets/|src=\"${BASE}/assets/|g" \
+                -e "s|src=\"/script.js\"|src=\"${BASE}/script.js\"|g" \
+                -e "s|src=\"/app-config.js\"|src=\"${BASE}/app-config.js\"|g" \
+              "$f" > "dist/$f"
+          done
+
+          sed \
+            -e "s|'/login'|'${BASE}/login.html'|g" \
+            -e "s|\`/certificacoes|\`${BASE}/certificacoes|g" \
+            -e "s|\`/planeamento|\`${BASE}/planeamento|g" \
+            script.js > dist/script.js
+
+          for page in certificacoes planeamento indicadores alertas; do
+            mkdir -p "dist/${page}"
+            cp "dist/${page}.html" "dist/${page}/index.html"
+          done
+
+          touch dist/.nojekyll
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist

@@ -1,0 +1,40 @@
+{
+  "name": "portal-certificacoes",
+  "version": "1.0.0",
+  "description": "Portal de certificacoes com Supabase",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:private": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath $env:INIT_CWD; node .\\api-server.cjs\"",
+    "create-table": "ts-node src/scripts/create-table.ts",
+    "verify-db": "ts-node src/scripts/verify-db.ts",
+    "lint": "eslint src/**/*.ts",
+    "test": "node --test"
+  },
+  "keywords": [
+    "supabase",
+    "certificacoes",
+    "crud",
+    "portal"
+  ],
+  "author": "Portal",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.3",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.3.1",
+    "express": "^4.21.2",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "eslint": "^8.54.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.2"
+  }
+}

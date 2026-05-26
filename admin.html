@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="pt-PT">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin | Portal Certificacoes</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="scroll-progress" id="scrollProgress"></div>
+    <nav class="navbar" id="navbar">
+      <div class="container">
+        <a href="index.html"><img class="navbar-logo" src="assets/portal-logo.svg" alt="Portal" /></a>
+        <div class="navbar-links" id="navLinks">
+          <a href="index.html">Home</a>
+          <a href="certificacoes.html">Certificações</a>
+          <a href="planeamento.html">Planeamento</a>
+          <a href="indicadores.html">Indicadores</a>
+          <a href="alertas.html">Alertas</a>
+          <a id="adminBtn" class="active" href="admin.html" style="display: none;">Admin</a>
+          <a id="loginBtn" href="login.html" style="color: #00d4ff; font-weight: 600;">Entrar</a>
+          <a id="logoutBtn" href="#" onclick="logoutUser(event)" style="color: #ff6b6b; font-weight: 600; display: none;">Sair</a>
+        </div>
+        <button class="hamburger" id="hamburger" aria-label="Abrir menu">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </nav>
+
+    <section class="page-hero">
+      <div class="hero-bg"></div>
+      <div class="particles" id="particles"></div>
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <span class="badge-label">Portal Certificacoes</span>
+        <h1>Administração</h1>
+        <p class="hero-sub">Gestão de acessos, permissões e segurança de utilizadores</p>
+      </div>
+    </section>
+
+    <main class="main-content">
+      <div class="container-wide">
+        <section class="content-section reveal" id="adminAccessGuard" style="display:none;">
+          <div class="glass-panel admin-guard">
+            <h2>Permissões limitadas</h2>
+            <p>Podes alterar apenas a tua própria password. A gestão de utilizadores está disponível apenas para perfis de administrador.</p>
+          </div>
+        </section>
+
+        <div id="adminContent" style="display:none;">
+          <section class="content-section reveal">
+            <div class="section-title">
+              <h2>Segurança da Conta</h2>
+              <p>Atualiza a tua própria password</p>
+            </div>
+            <div class="glass-panel admin-panel">
+              <form id="changePasswordForm" class="admin-form">
+                <label for="adminOwnPassword">Nova password</label>
+                <input id="adminOwnPassword" type="password" minlength="8" autocomplete="new-password" required />
+
+                <label for="adminOwnPasswordConfirm">Confirmar password</label>
+                <input id="adminOwnPasswordConfirm" type="password" minlength="8" autocomplete="new-password" required />
+
+                <button id="changePasswordBtn" class="hero-cta admin-submit" type="submit">Atualizar password</button>
+              </form>
+              <p id="passwordFeedback" class="admin-feedback"></p>
+            </div>
+          </section>
+
+          <section class="content-section reveal" id="adminUserManagementSection">
+            <div class="section-title">
+              <h2>Gestão de Utilizadores</h2>
+              <p>Gerir utilizadores da whitelist e permissões de acesso</p>
+            </div>
+            <div class="admin-grid">
+              <div class="glass-panel admin-panel">
+                <h3>Adicionar à whitelist</h3>
+                <form id="adminCreateUserForm" class="admin-form">
+                  <label for="adminNewEmail">Email</label>
+                  <input id="adminNewEmail" type="email" autocomplete="email" required />
+
+                  <label for="adminNewPassword">Password inicial</label>
+                  <input id="adminNewPassword" type="password" minlength="8" autocomplete="new-password" />
+
+                  <label class="admin-check-row">
+                    <input id="adminNewActive" type="checkbox" checked />
+                    <span>Conta ativa na whitelist</span>
+                  </label>
+
+                  <label class="admin-check-row">
+                    <input id="adminNewIsAdmin" type="checkbox" />
+                    <span>Conceder perfil administrador</span>
+                  </label>
+
+                  <button id="adminCreateBtn" class="hero-cta admin-submit" type="submit">Criar acesso</button>
+                </form>
+                <p class="admin-help">A criação guarda o utilizador em Supabase Auth e atualiza a whitelist com password hash, tudo online.</p>
+                <p id="adminFeedback" class="admin-feedback"></p>
+              </div>
+
+              <div class="glass-panel admin-panel">
+                <h3>Whitelist atual</h3>
+                <div class="table-wrap admin-table-wrap">
+                  <table class="data-table admin-users-table">
+                    <thead>
+                      <tr>
+                        <th>Email</th>
+                        <th>Estado</th>
+                        <th>Perfil</th>
+                        <th>Atualizado</th>
+                        <th>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody id="adminUsersBody">
+                      <tr><td colspan="5">A carregar utilizadores…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <img class="footer-logo" src="assets/portal-logo.svg" alt="Portal" />
+        </div>
+        <p class="footer-copy">© 2026 Portal Certificacoes. All rights reserved.</p>
+      </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app-config.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>

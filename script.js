@@ -1,0 +1,3276 @@
+// Capture URL params before any IIFE clears them via history.replaceState
+const _initSearch = window.location.search;
+if (_initSearch) history.replaceState(null, "", window.location.pathname);
+
+const authState = { email: null, isAdmin: false };
+let supabaseAccessToken = null;
+const ADMIN_ONLY_ACTION_IDS = [
+  "updateIndicadoresBtn",
+  "exportBtn",
+  "toggleEditBtn",
+  "addRowBtn",
+  "saveAllBtn",
+  "planExportBtn",
+  "planToggleEditBtn",
+  "planAddRowBtn",
+  "planSaveAllBtn"
+];
+
+function updateAdminOnlyActionVisibility() {
+  const isAdmin = Boolean(authState.isAdmin);
+  ADMIN_ONLY_ACTION_IDS.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = isAdmin ? "" : "none";
+  });
+}
+
+function getBasePath() {
+  if (!window.location.hostname.endsWith('github.io')) return '';
+  const first = window.location.pathname.split('/').filter(Boolean)[0] || '';
+  return first ? `/${first}` : '';
+}
+
+const BASE_PATH = getBasePath();
+const LOGIN_PATH = `${BASE_PATH}/login.html`;
+const HOME_PATH = `${BASE_PATH}/`;
+
+function appPath(path) {
+  if (!path || typeof path !== 'string') return path;
+  if (!path.startsWith('/')) return path;
+  return `${BASE_PATH}${path}`;
+}
+
+const cfg = window.APP_CONFIG || {};
+if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY || !window.supabase?.createClient) {
+  throw new Error('APP_CONFIG/Supabase client em falta. Verifica app-config.js e script CDN.');
+}
+
+const supabaseClient = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+
+// Update UI based on auth state
+function updateAuthUI() {
+  const loginBtn = document.getElementById('loginBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const adminBtn = document.getElementById('adminBtn');
+  const isAuthenticated = Boolean(authState.email);
+  
+  if (loginBtn) loginBtn.style.display = isAuthenticated ? 'none' : 'inline-block';
+  if (logoutBtn) logoutBtn.style.display = isAuthenticated ? 'inline-block' : 'none';
+  if (adminBtn) adminBtn.style.display = isAuthenticated ? 'inline-block' : 'none';
+  updateAdminOnlyActionVisibility();
+}
+
+// Auth check - redireciona para login se não autenticado
+const authReady = (async () => {
+  // Se em página de login, skip
+  if (window.location.pathname.endsWith('/login.html') || window.location.pathname.endsWith('/login')) {
+    updateAuthUI();
+    return;
+  }
+
+  try {
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const session = sessionData?.session;
+    const token = session?.access_token || null;
+    const email = String(session?.user?.email || '').toLowerCase();
+
+    if (!token || !email) {
+      window.location.href = LOGIN_PATH;
+      return;
+    }
+
+    const { data: allowedRows, error: allowErr } = await supabaseClient
+      .from('authorized_emails')
+      .select('*')
+      .eq('email', email)
+      .eq('active', true)
+      .limit(1);
+
+    if (allowErr || !Array.isArray(allowedRows) || allowedRows.length === 0) {
+      await supabaseClient.auth.signOut();
+      window.location.href = LOGIN_PATH;
+      return;
+    }
+
+    supabaseAccessToken = token;
+    authState.email = email;
+    authState.isAdmin = Boolean(allowedRows?.[0]?.is_admin);
+    updateAuthUI();
+
+    // Some page loaders may run before auth is ready; refresh visible sections now.
+    reloadCurrentPageData();
+  } catch (_err) {
+    window.location.href = LOGIN_PATH;
+  }
+})();
+
+const API_BASE_URL = `${cfg.SUPABASE_URL}/rest/v1`;
+
+const SITE_OPTIONS = ["Lisboa", "Porto", "Braganca", "Covilha", "Brasil"];
+const COLUMN_KEYS = ["equipa", "email", "codigo_certificacao", "nome_certificacao", "site", "data_certificacao", "data_expiracao", "externo", "status_cert", "saiu", "notas", "acoes"];
+const COLUMN_LABELS = {
+  equipa: "Equipa",
+  email: "Email",
+  codigo_certificacao: "Codigo",
+  nome_certificacao: "Certificacao",
+  site: "Site",
+  data_certificacao: "Data Certificacao",
+  data_expiracao: "Válida até",
+  externo: "Externo",
+  status_cert: "Status",
+  saiu: "Saiu",
+  notas: "Notas",
+  acoes: "Acoes"
+};
+
+let stayRows = [];
+let stayNotes = [];
+let displayedRows = [];
+let editMode = false;
+let newRowDraft = null;
+let stayDirtySet = new Set(); // "equipa::email::codigo_certificacao" keys of rows with unsaved edits
+let _savedVisibleColumns = null;
+let sortState = { key: "email", direction: "asc" };
+const HIDDEN_BY_DEFAULT = new Set(["site", "data_certificacao", "externo", "saiu", "notas", "acoes"]);
+let visibleColumns = Object.fromEntries(COLUMN_KEYS.map((k) => [k, !HIDDEN_BY_DEFAULT.has(k)]));
+let filterState = {
+  equipa: "",
+  email: "",
+  codigo_certificacao: "",
+  nome_certificacao: "",
+  site: "",
+  data_certificacao: "",
+  data_expiracao: "",
+  externo: "",
+  status_cert: "",
+  saiu: ""
+};
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+async function logoutUser(e) {
+  e?.preventDefault();
+  await supabaseClient.auth.signOut();
+  authState.email = null;
+  authState.isAdmin = false;
+  supabaseAccessToken = null;
+  updateAuthUI();
+  window.location.href = LOGIN_PATH;
+}
+
+function calcExpirado(dateStr) {
+  if (!dateStr) return false;
+  return new Date(dateStr) < new Date(new Date().toISOString().slice(0, 10));
+}
+function rowStateLabel(row) { return row.expirado ? "Expirado" : "Ativo"; }
+function externoLabel(row) { return row.externo ? "Sim" : ""; }
+function saiuLabel(row) { return row.saiu ? "Sim" : ""; }
+function supabaseHeaders(extra = {}) {
+  return {
+    apikey: cfg.SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${supabaseAccessToken || cfg.SUPABASE_ANON_KEY}`,
+    "Content-Type": "application/json",
+    ...extra
+  };
+}
+
+function reloadCurrentPageData() {
+  if (!authState.email) return;
+  if (document.getElementById("stayTableBody")) loadStayCertifiedTable();
+  if (document.getElementById("planTableBody")) loadPlaneamentoTable();
+  if (document.getElementById("homeTotalCerts")) loadHomeTotals();
+  if (document.getElementById("adminUsersBody") || document.getElementById("changePasswordForm")) {
+    loadAdminPage();
+  }
+  if (document.getElementById("alertCardList") || document.getElementById("planCardList")) {
+    loadAlertTeams();
+    loadAlertCounters(alertTeamFilter || "");
+    loadPlanAlerts(alertTeamFilter || "");
+  }
+  if (document.getElementById("indEvolutionChart") || document.getElementById("indTotalCerts")) {
+    loadIndTeams();
+    loadIndOverview(indTeamFilter || "");
+    loadIndChart(indTeamFilter || "");
+    loadIndNewCertsChart(indTeamFilter || "");
+  }
+}
+
+async function loadStayCertifiedTable() {
+  const tbody = document.getElementById("stayTableBody");
+  if (!tbody) return;
+  try {
+    const url =
+      `${API_BASE_URL}/stay_certified` +
+      "?select=equipa,email,codigo_certificacao,nome_certificacao,site,data_expiracao,expirado,data_certificacao,externo,saiu" +
+      "&order=data_expiracao.asc&limit=1000";
+    const res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    stayRows = await res.json();
+    const nr = await fetch(`${API_BASE_URL}/stay_certified_notas?select=*&order=created_at.asc`, { headers: supabaseHeaders() });
+    stayNotes = nr.ok ? await nr.json() : [];
+    buildStayDataLists(stayRows);
+    renderTeamTiles(stayRows);
+    renderStayTable();
+  } catch (err) {
+    tbody.innerHTML = "<tr><td colspan=\"9\">Erro a carregar dados do Supabase.</td></tr>";
+    console.error(err);
+  }
+}
+
+function normalizeSortValue(value, key, row) {
+  if (key === "externo" || key === "saiu") return value ? 1 : 0;
+  if (key === "data_expiracao" || key === "data_certificacao") return value ? new Date(value).getTime() : 0;
+  if (key === "status_cert") return (row?.expirado === true || row?.expirado === 'X') ? 1 : 0;
+  return String(value ?? "").toLowerCase();
+}
+function applyFilters(rows) {
+  return rows.filter((row) =>
+    Object.entries(filterState).every(([key, value]) => {
+      const needle = String(value || "").trim().toLowerCase();
+      if (!needle) return true;
+      let haystack;
+      if (key === "externo") haystack = externoLabel(row).toLowerCase();
+      else if (key === "saiu") haystack = saiuLabel(row).toLowerCase();
+      else if (key === "status_cert") haystack = (row.expirado === true || row.expirado === 'X') ? "expirado" : "válido";
+      else haystack = String(row[key] ?? "").toLowerCase();
+      return haystack.includes(needle);
+    })
+  );
+}
+function getViewRows() {
+  const rows = applyFilters([...stayRows]);
+  const { key, direction } = sortState;
+  rows.sort((a, b) => {
+    const va = normalizeSortValue(a[key], key, a);
+    const vb = normalizeSortValue(b[key], key, b);
+    if (va < vb) return direction === "asc" ? -1 : 1;
+    if (va > vb) return direction === "asc" ? 1 : -1;
+    return 0;
+  });
+  return rows;
+}
+
+function attachAutocomplete(input, suggestions) {
+  let dropdown = null;
+
+  function showDropdown(items) {
+    removeDropdown();
+    if (!items.length) return;
+    dropdown = document.createElement("ul");
+    dropdown.className = "ac-dropdown";
+    items.slice(0, 25).forEach(item => {
+      const li = document.createElement("li");
+      li.className = "ac-option";
+      li.textContent = item;
+      li.addEventListener("mousedown", e => {
+        e.preventDefault();
+        input.value = item;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        removeDropdown();
+      });
+      dropdown.appendChild(li);
+    });
+    const wrap = input.closest("th") || input.parentNode;
+    wrap.style.position = "relative";
+    wrap.appendChild(dropdown);
+  }
+
+  function removeDropdown() {
+    if (dropdown) { dropdown.remove(); dropdown = null; }
+  }
+
+  input.addEventListener("focus", () => {
+    const val = input.value.toLowerCase();
+    const matches = val ? suggestions.filter(s => s.toLowerCase().includes(val)) : suggestions.slice(0, 25);
+    showDropdown(matches);
+  });
+
+  input.addEventListener("input", () => {
+    const val = input.value.toLowerCase();
+    const matches = val ? suggestions.filter(s => s.toLowerCase().includes(val)) : suggestions.slice(0, 25);
+    showDropdown(matches);
+  });
+
+  input.addEventListener("blur", () => setTimeout(removeDropdown, 150));
+
+  input.addEventListener("keydown", e => {
+    if (!dropdown) return;
+    const items = [...dropdown.querySelectorAll(".ac-option")];
+    const active = dropdown.querySelector(".ac-option.ac-active");
+    let idx = items.indexOf(active);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (active) active.classList.remove("ac-active");
+      items[(idx + 1) % items.length].classList.add("ac-active");
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (active) active.classList.remove("ac-active");
+      items[(idx - 1 + items.length) % items.length].classList.add("ac-active");
+    } else if (e.key === "Enter" && active) {
+      e.preventDefault();
+      input.value = active.textContent;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      removeDropdown();
+    } else if (e.key === "Escape") {
+      removeDropdown();
+    }
+  });
+}
+
+function applyDatePickers(container) {
+  if (!window.flatpickr) return;
+  container.querySelectorAll("input.fp-date").forEach(inp => {
+    if (inp._flatpickr) return;
+    flatpickr(inp, {
+      dateFormat: "Y-m-d",
+      allowInput: true,
+      disableMobile: true,
+      locale: { firstDayOfWeek: 1 },
+      onChange: () => inp.dispatchEvent(new Event("change", { bubbles: true })),
+    });
+  });
+}
+
+function buildStayDataLists(rows) {
+  Object.keys(filterState).forEach(field => {
+    const unique = [...new Set(rows.map(r => String(r[field] ?? "")).filter(Boolean))].sort();
+    const input = document.querySelector(`.filter-row [data-filter="${field}"]`);
+    if (input) attachAutocomplete(input, unique);
+  });
+}
+
+function renderStayTable() {
+  const tbody = document.getElementById("stayTableBody");
+  if (!tbody) return;
+  displayedRows = getViewRows();
+  if (!displayedRows.length && !newRowDraft) {
+    tbody.innerHTML = "<tr><td colspan=\"11\">Sem registos.</td></tr>";
+    updateTotals();
+    return;
+  }
+
+  const rowsHtml = displayedRows.map((r, idx) => {
+    const statusBadge = (r.expirado === true || r.expirado === 'X')
+      ? '<span class="badge danger">Expirado</span>'
+      : '<span class="badge ok">Válido</span>';
+    const rowNotes = stayNotes.filter(n => n.equipa === r.equipa && n.email === r.email && n.codigo_certificacao === r.codigo_certificacao);
+    const notesBtnHtml = `<button class="notes-trigger${rowNotes.length > 0 ? ' has-notes' : ''}"
+      data-notes-equipa="${escapeHtml(r.equipa)}"
+      data-notes-email="${escapeHtml(r.email)}"
+      data-notes-codigo="${escapeHtml(r.codigo_certificacao)}"
+      data-notes-table="stay_certified_notas"
+      title="${rowNotes.length} nota(s)">${rowNotes.length > 0 ? `<span class="notes-badge">${rowNotes.length}</span>` : '+'}</button>`;
+    if (!editMode) {
+      return `<tr>
+        <td class="col-equipa">${escapeHtml(r.equipa)}</td>
+        <td class="col-email">${escapeHtml(r.email)}</td>
+        <td class="col-codigo_certificacao">${escapeHtml(r.codigo_certificacao)}</td>
+        <td class="col-nome_certificacao">${escapeHtml(r.nome_certificacao)}</td>
+        <td class="col-site">${escapeHtml(r.site)}</td>
+        <td class="col-data_certificacao">${escapeHtml(r.data_certificacao)}</td>
+        <td class="col-data_expiracao">${escapeHtml(r.data_expiracao)}</td>
+        <td class="col-externo">${r.externo ? '<span class="badge ok">Sim</span>' : ""}</td>
+        <td class="col-status_cert">${statusBadge}</td>
+        <td class="col-saiu">${r.saiu ? '<span class="badge danger">Sim</span>' : ""}</td>
+        <td class="col-notas">${notesBtnHtml}</td>
+        <td class="col-acoes">-</td>
+      </tr>`;
+    }
+    const isExp = r.expirado === true || r.expirado === 'X';
+    const isDirty = stayDirtySet.has(`${r.equipa}::${r.email}::${r.codigo_certificacao}`);
+    return `<tr${isDirty ? ' class="row-dirty"' : ''}>
+      <td class="col-equipa">${escapeHtml(r.equipa)}</td>
+      <td class="col-email">${escapeHtml(r.email)}</td>
+      <td class="col-codigo_certificacao">${escapeHtml(r.codigo_certificacao)}</td>
+      <td class="col-nome_certificacao"><input data-field="nome_certificacao" data-idx="${idx}" value="${escapeHtml(r.nome_certificacao)}" /></td>
+      <td class="col-site"><select data-field="site" data-idx="${idx}">${SITE_OPTIONS.map((s) => `<option value="${s}" ${r.site === s ? "selected" : ""}>${s}</option>`).join("")}</select></td>
+      <td class="col-data_certificacao"><input class="fp-date" data-field="data_certificacao" data-idx="${idx}" type="text" value="${escapeHtml(r.data_certificacao ?? '')}" placeholder="AAAA-MM-DD" /></td>
+      <td class="col-data_expiracao"><input class="fp-date" data-field="data_expiracao" data-idx="${idx}" type="text" value="${escapeHtml(r.data_expiracao ?? '')}" placeholder="AAAA-MM-DD" /></td>
+      <td class="col-externo"><select data-field="externo" data-idx="${idx}"><option value="" ${!r.externo ? "selected" : ""}> </option><option value="Sim" ${r.externo ? "selected" : ""}>Sim</option></select></td>
+      <td class="col-status_cert"><select data-field="expirado" data-idx="${idx}"><option value="false" ${!isExp ? "selected" : ""}>Válido</option><option value="true" ${isExp ? "selected" : ""}>Expirado</option></select></td>
+      <td class="col-saiu"><select data-field="saiu" data-idx="${idx}"><option value="" ${!r.saiu ? "selected" : ""}> </option><option value="Sim" ${r.saiu ? "selected" : ""}>Sim</option></select></td>
+      <td class="col-notas">${notesBtnHtml}</td>
+      <td class="col-acoes"><div class="row-actions"><button class="mini-btn cancel" data-action="delete-row" data-idx="${idx}" title="Eliminar registo">🗑</button></div></td>
+    </tr>`;
+  }).join("");
+
+  const newRowHtml = editMode && newRowDraft ? `<tr>
+    <td class="col-equipa"><input data-new="equipa" value="${escapeHtml(newRowDraft.equipa)}" /></td>
+    <td class="col-email"><input data-new="email" type="email" value="${escapeHtml(newRowDraft.email)}" /></td>
+    <td class="col-codigo_certificacao"><input data-new="codigo_certificacao" value="${escapeHtml(newRowDraft.codigo_certificacao)}" /></td>
+    <td class="col-nome_certificacao"><input data-new="nome_certificacao" value="${escapeHtml(newRowDraft.nome_certificacao)}" /></td>
+    <td class="col-site"><select data-new="site">${SITE_OPTIONS.map((s) => `<option value="${s}" ${newRowDraft.site === s ? "selected" : ""}>${s}</option>`).join("")}</select></td>
+    <td class="col-data_certificacao"><input class="fp-date" data-new="data_certificacao" type="text" value="" placeholder="AAAA-MM-DD" /></td>
+    <td class="col-data_expiracao"><input class="fp-date" data-new="data_expiracao" type="text" value="" placeholder="AAAA-MM-DD" /></td>
+    <td class="col-externo"><select data-new="externo"><option value="" selected> </option><option value="Sim">Sim</option></select></td>
+    <td class="col-status_cert"><select data-new="expirado"><option value="false" selected>Válido</option><option value="true">Expirado</option></select></td>
+    <td class="col-saiu"><select data-new="saiu"><option value="" selected> </option><option value="Sim">Sim</option></select></td>
+    <td class="col-notas">—</td>
+    <td class="col-acoes"><div class="row-actions"><button class="mini-btn cancel" id="cancelNewRowBtn" title="Cancelar">✕</button></div></td>
+  </tr>` : "";
+
+  tbody.innerHTML = rowsHtml + newRowHtml;
+  applyDatePickers(tbody);
+  updateSortHeaderUI();
+  applyColumnVisibility();
+  updateTotals();
+  fitTableColumns();
+}
+
+function fitTableColumns() {
+  const table = document.querySelector(".data-table");
+  if (!table) return;
+  const headerCells = table.querySelectorAll("thead tr:first-child th");
+  // Reset previously forced widths so the browser can measure naturally
+  headerCells.forEach((th) => { th.style.width = ""; th.style.minWidth = ""; });
+  table.style.width = "max-content";
+  // Measure each column's natural max content width
+  headerCells.forEach((th, i) => {
+    const col = i + 1;
+    let max = th.scrollWidth;
+    table.querySelectorAll(`tr td:nth-child(${col}), thead tr th:nth-child(${col})`).forEach((cell) => {
+      if (cell.scrollWidth > max) max = cell.scrollWidth;
+    });
+    th.style.width = `${max}px`;
+    th.style.minWidth = `${max}px`;
+  });
+}
+
+function updateSortHeaderUI() {
+  document.querySelectorAll("th[data-sort]").forEach((h) => {
+    h.classList.remove("sorted-asc", "sorted-desc");
+    if (h.dataset.sort === sortState.key) h.classList.add(sortState.direction === "asc" ? "sorted-asc" : "sorted-desc");
+  });
+}
+function updateTotals() {
+  const c = document.getElementById("filteredCount");
+  if (c) c.textContent = `${displayedRows.length} / ${stayRows.length}`;
+}
+
+function collectRowInput(idx) {
+  const getValue = (field) => document.querySelector(`[data-field="${field}"][data-idx="${idx}"]`)?.value?.trim() ?? "";
+  const getCheck = (field) => getValue(field) === "Sim";
+  const original = displayedRows[idx];
+  const dataExp = getValue("data_expiracao");
+  return {
+    nome_certificacao: getValue("nome_certificacao"),
+    site: getValue("site"),
+    data_expiracao: dataExp,
+    expirado: getValue("expirado") === "true",
+    externo: getCheck("externo"),
+    saiu: getCheck("saiu"),
+    updated_at: new Date().toISOString(),
+    data_certificacao: getValue("data_certificacao") || original.data_certificacao
+  };
+}
+async function saveExistingRow(idx) {
+  const row = displayedRows[idx];
+  const payload = collectRowInput(idx);
+  const query = `equipa=eq.${encodeURIComponent(row.equipa)}&email=eq.${encodeURIComponent(row.email)}&codigo_certificacao=eq.${encodeURIComponent(row.codigo_certificacao)}`;
+  const res = await fetch(`${API_BASE_URL}/stay_certified?${query}`, { method: "PATCH", headers: supabaseHeaders({ Prefer: "return=representation" }), body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error(`PATCH failed ${res.status}`);
+}
+async function deleteExistingRow(idx) {
+  const row = displayedRows[idx];
+  if (!await _modal.confirm(`Eliminar o registo ${row.email} / ${row.codigo_certificacao}?`, "Confirmar eliminação")) return;
+  const query = `equipa=eq.${encodeURIComponent(row.equipa)}&email=eq.${encodeURIComponent(row.email)}&codigo_certificacao=eq.${encodeURIComponent(row.codigo_certificacao)}`;
+  const [res] = await Promise.all([
+    fetch(`${API_BASE_URL}/stay_certified?${query}`, { method: "DELETE", headers: supabaseHeaders() }),
+    fetch(`${API_BASE_URL}/stay_certified_notas?${query}`, { method: "DELETE", headers: supabaseHeaders() })
+  ]);
+  if (!res.ok) throw new Error(`DELETE failed ${res.status}`);
+  stayNotes = stayNotes.filter(n => !(n.equipa === row.equipa && n.email === row.email && n.codigo_certificacao === row.codigo_certificacao));
+}
+
+function startNewRow() {
+  newRowDraft = { equipa: "", email: "", codigo_certificacao: "", nome_certificacao: "", site: "Lisboa", data_certificacao: "", data_expiracao: "" };
+  if (!_savedVisibleColumns) {
+    _savedVisibleColumns = { ...visibleColumns };
+    COLUMN_KEYS.forEach(k => { if (k !== "acoes") visibleColumns[k] = true; });
+    applyColumnVisibility();
+    syncStayColToggleButtons();
+  }
+  renderStayTable();
+  const newInputs = [...document.querySelectorAll("[data-new]")];
+  const first = newInputs.find((el) => el.closest("td")?.style.display !== "none");
+  first?.focus();
+}
+function readNewRowDraft() {
+  const getValue = (field) => document.querySelector(`[data-new="${field}"]`)?.value?.trim() ?? "";
+  const dataExp = getValue("data_expiracao");
+  return {
+    equipa: getValue("equipa"),
+    email: getValue("email"),
+    codigo_certificacao: getValue("codigo_certificacao"),
+    nome_certificacao: getValue("nome_certificacao"),
+    site: getValue("site"),
+    data_expiracao: dataExp,
+    data_certificacao: getValue("data_certificacao"),
+    expirado: document.querySelector('[data-new="expirado"]')?.value === "true" || calcExpirado(dataExp),
+    externo: document.querySelector('[data-new="externo"]')?.value === "Sim",
+    saiu: document.querySelector('[data-new="saiu"]')?.value === "Sim"
+  };
+}
+async function insertNewRow() {
+  const payload = readNewRowDraft();
+  if (!payload.equipa || !payload.email || !payload.codigo_certificacao || !payload.nome_certificacao) {
+    await _modal.alert("Preenche todos os campos obrigatórios: equipa, email, código e certificação.");
+    return;
+  }
+  const isDuplicate = stayRows.some((r) =>
+    r.equipa === payload.equipa &&
+    r.email === payload.email &&
+    r.codigo_certificacao === payload.codigo_certificacao
+  );
+  if (isDuplicate) {
+    await _modal.alert("Já existe um registo com esta combinação de equipa, email e código de certificação.", "Registo duplicado");
+    return;
+  }
+  const res = await fetch(`${API_BASE_URL}/stay_certified`, { method: "POST", headers: supabaseHeaders({ Prefer: "return=representation" }), body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error(`POST failed ${res.status}`);
+  newRowDraft = null;
+}
+
+function renderTeamTiles(rows) {
+  const container = document.getElementById("teamTiles");
+  if (!container) return;
+  const counts = {};
+  rows.forEach((r) => { counts[r.equipa] = (counts[r.equipa] || 0) + 1; });
+  const teams = Object.keys(counts).sort();
+  container.innerHTML = teams.map((t) =>
+    `<button type="button" class="team-tile${filterState.equipa === t ? " active" : ""}" data-team="${escapeHtml(t)}">
+      <span class="team-tile-name">${escapeHtml(t)}</span>
+      <span class="team-tile-count">${counts[t]} cert.</span>
+    </button>`
+  ).join("");
+}
+
+function setupTeamTilesListener() {
+  const container = document.getElementById("teamTiles");
+  if (!container) return;
+  container.addEventListener("click", (e) => {
+    const tile = e.target.closest("[data-team]");
+    if (!tile) return;
+    const team = tile.dataset.team;
+    const isActive = filterState.equipa === team;
+    filterState.equipa = isActive ? "" : team;
+    const equipaInput = document.querySelector(".filter-row [data-filter='equipa']");
+    if (equipaInput) equipaInput.value = filterState.equipa;
+    renderStayTable();
+    renderTeamTiles(stayRows);
+    if (!isActive) {
+      document.getElementById("certPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
+}
+
+const _modal = (() => {
+  let overlay, titleEl, msgEl, okBtn, cancelBtn;
+  function build() {
+    overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `<div class="modal-box">
+      <div class="modal-title" id="_mTitle"></div>
+      <p class="modal-message" id="_mMsg"></p>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" id="_mCancel">Cancelar</button>
+        <button class="modal-btn modal-btn-ok" id="_mOk">OK</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    titleEl  = overlay.querySelector("#_mTitle");
+    msgEl    = overlay.querySelector("#_mMsg");
+    okBtn    = overlay.querySelector("#_mOk");
+    cancelBtn = overlay.querySelector("#_mCancel");
+  }
+  function show(title, msg, hasCancel, okLabel = "OK", cancelLabel = "Cancelar") {
+    if (!overlay) build();
+    titleEl.textContent = title;
+    msgEl.textContent   = msg;
+    okBtn.textContent     = okLabel;
+    cancelBtn.textContent = cancelLabel;
+    cancelBtn.style.display = hasCancel ? "" : "none";
+    overlay.classList.add("visible");
+    return new Promise((resolve) => {
+      const done = (val) => { overlay.classList.remove("visible"); okBtn.onclick = null; cancelBtn.onclick = null; resolve(val); };
+      okBtn.onclick     = () => done(true);
+      cancelBtn.onclick = () => done(false);
+    });
+  }
+  return {
+    alert:   (msg, title = "Aviso")                                          => show(title, msg, false),
+    confirm: (msg, title = "Confirmação", ok = "OK", cancel = "Cancelar")    => show(title, msg, true, ok, cancel)
+  };
+})();
+function setupColumnMenu() {
+  const container = document.getElementById("colToggles");
+  if (!container) return;
+  const toggleable = COLUMN_KEYS.filter((k) => k !== "acoes");
+  container.innerHTML = toggleable.map((k) =>
+    `<button type="button" class="col-toggle-btn${visibleColumns[k] ? " active" : ""}" data-col-toggle="${k}">${COLUMN_LABELS[k]}</button>`
+  ).join("");
+  container.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-col-toggle]");
+    if (!btn) return;
+    const key = btn.dataset.colToggle;
+    visibleColumns[key] = !visibleColumns[key];
+    btn.classList.toggle("active", visibleColumns[key]);
+    applyColumnVisibility();
+  });
+}
+function syncStayColToggleButtons() {
+  document.querySelectorAll("#colToggles [data-col-toggle]").forEach(btn => {
+    btn.classList.toggle("active", !!visibleColumns[btn.dataset.colToggle]);
+  });
+}
+
+function applyColumnVisibility() {
+  COLUMN_KEYS.forEach((k) => {
+    const show = visibleColumns[k];
+    document.querySelectorAll(`.col-${k}`).forEach((el) => { el.style.display = show ? "" : "none"; });
+    const filterInput = document.querySelector(`[data-filter="${k}"]`);
+    if (filterInput) filterInput.style.display = show ? "" : "none";
+  });
+}
+
+async function saveStayDirtyRows() {
+  if (newRowDraft !== null) await insertNewRow();
+  for (const key of stayDirtySet) {
+    const [equipa, email, codigo] = key.split("::");
+    const idx = displayedRows.findIndex(r => r.equipa === equipa && r.email === email && r.codigo_certificacao === codigo);
+    if (idx >= 0) await saveExistingRow(idx);
+  }
+  stayDirtySet.clear();
+}
+
+function updateStaySaveAllBtnState(saveAllBtn) {
+  if (!saveAllBtn) return;
+  const hasPending = stayDirtySet.size > 0 || newRowDraft !== null;
+  saveAllBtn.classList.toggle("has-changes", hasPending);
+}
+
+function cleanExcelVal(col, val) {
+  if (val === null || val === undefined) return "";
+  if (typeof val === "boolean") return val ? "Sim" : "Não";
+  const s = String(val);
+  if (s === "true")  return "Sim";
+  if (s === "false") return "Não";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split("-");
+    return `${d}/${m}/${y}`;
+  }
+  return s;
+}
+
+async function exportToExcel(rows, columns, labels, filename) {
+  if (!window.XLSX) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js";
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  const XLSX = window.XLSX;
+  const data = [
+    labels,
+    ...rows.map(r => columns.map(c => cleanExcelVal(c, r[c])))
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws["!cols"] = columns.map((c, i) => {
+    const maxLen = Math.max(labels[i].length, ...rows.map(r => String(cleanExcelVal(c, r[c])).length));
+    return { wch: Math.min(Math.max(maxLen + 2, 12), 55) };
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Dados");
+  XLSX.writeFile(wb, filename);
+}
+
+function setupStayCertifiedEdition() {
+  const toggleBtn = document.getElementById("toggleEditBtn");
+  const addRowBtn = document.getElementById("addRowBtn");
+  const saveAllBtn = document.getElementById("saveAllBtn");
+  const exportBtn  = document.getElementById("exportBtn");
+  const tbody = document.getElementById("stayTableBody");
+  if (!toggleBtn || !addRowBtn || !tbody) return;
+
+  if (exportBtn) {
+    exportBtn.addEventListener("click", () => {
+      if (!authState.isAdmin) return;
+      const exportCols   = COLUMN_KEYS.filter(k => k !== "acoes" && k !== "notas");
+      const exportLabels = exportCols.map(k => COLUMN_LABELS[k]);
+      const today = new Date().toISOString().slice(0, 10);
+      const processedRows = displayedRows.map(r => ({
+        ...r,
+        status_cert: (r.expirado === true || r.expirado === "X") ? "Expirado" : "Válido",
+        externo: r.externo ? "Sim" : "Não",
+        saiu:    r.saiu    ? "Sim" : "Não",
+      }));
+      exportToExcel(processedRows, exportCols, exportLabels, `certificacoes_${today}.xlsx`);
+    });
+  }
+
+  const exitEditMode = async (reload) => {
+    editMode = false;
+    newRowDraft = null;
+    stayDirtySet.clear();
+    toggleBtn.classList.remove("active");
+    addRowBtn.classList.add("hidden");
+    if (saveAllBtn) { saveAllBtn.classList.add("hidden"); saveAllBtn.classList.remove("has-changes"); }
+    if (exportBtn)  exportBtn.classList.remove("hidden");
+    if (_savedVisibleColumns) {
+      Object.assign(visibleColumns, _savedVisibleColumns);
+      _savedVisibleColumns = null;
+    }
+    visibleColumns.acoes = false;
+    applyColumnVisibility();
+    syncStayColToggleButtons();
+    if (reload) await loadStayCertifiedTable();
+    else renderStayTable();
+  };
+
+  toggleBtn.addEventListener("click", async () => {
+    if (!authState.isAdmin) return;
+    if (!editMode) {
+      editMode = true;
+      toggleBtn.classList.add("active");
+      addRowBtn.classList.remove("hidden");
+      addRowBtn.disabled = false;
+      if (saveAllBtn) saveAllBtn.classList.remove("hidden");
+      if (exportBtn)  exportBtn.classList.add("hidden");
+      visibleColumns.acoes = true;
+      applyColumnVisibility();
+      renderStayTable();
+      return;
+    }
+    const hasPending = stayDirtySet.size > 0 || newRowDraft !== null;
+    if (hasPending) {
+      const save = await _modal.confirm(
+        "Existem alterações não guardadas. Guardar antes de sair do modo de edição?",
+        "Alterações pendentes",
+        "Guardar",
+        "Descartar"
+      );
+      if (save) {
+        try {
+          await saveStayDirtyRows();
+          await exitEditMode(true);
+        } catch (err) {
+          console.error(err);
+          await _modal.alert("Erro ao guardar os dados. Tenta novamente.", "Erro");
+        }
+      } else {
+        await exitEditMode(false);
+      }
+    } else {
+      await exitEditMode(false);
+    }
+  });
+
+  if (saveAllBtn) {
+    saveAllBtn.addEventListener("click", async () => {
+      if (!stayDirtySet.size && newRowDraft === null) return;
+      saveAllBtn.disabled = true;
+      try {
+        await saveStayDirtyRows();
+        await loadStayCertifiedTable();
+        updateStaySaveAllBtnState(saveAllBtn);
+        addRowBtn.disabled = false;
+      } catch (err) {
+        console.error(err);
+        await _modal.alert("Erro ao guardar os dados. Tenta novamente.", "Erro");
+      } finally {
+        saveAllBtn.disabled = false;
+      }
+    });
+  }
+
+  addRowBtn.addEventListener("click", () => {
+    if (newRowDraft !== null) return;
+    startNewRow();
+    addRowBtn.disabled = true;
+    updateStaySaveAllBtnState(saveAllBtn);
+  });
+
+  tbody.addEventListener("change", (e) => {
+    const field = e.target.dataset.field;
+    if (!field) return;
+    const idx = Number(e.target.dataset.idx);
+    const row = displayedRows[idx];
+    if (row) {
+      stayDirtySet.add(`${row.equipa}::${row.email}::${row.codigo_certificacao}`);
+      e.target.closest("tr")?.classList.add("row-dirty");
+      updateStaySaveAllBtnState(saveAllBtn);
+    }
+  });
+
+  tbody.addEventListener("click", async (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    try {
+      const notesBtn = target.closest(".notes-trigger");
+      if (notesBtn) {
+        if (_notesPopover && _notesAnchorBtn === notesBtn) { closeNotesPopover(); return; }
+        openNotesPopover(notesBtn.dataset.notesEquipa, notesBtn.dataset.notesEmail, notesBtn.dataset.notesCodigo, notesBtn, notesBtn.dataset.notesTable || "stay_certified_notas");
+        return;
+      }
+      if (target.dataset.action === "delete-row") {
+        await deleteExistingRow(Number(target.dataset.idx));
+        stayDirtySet.clear();
+        await loadStayCertifiedTable();
+        updateStaySaveAllBtnState(saveAllBtn);
+        return;
+      }
+      if (target.id === "cancelNewRowBtn") {
+        newRowDraft = null;
+        addRowBtn.disabled = false;
+        updateStaySaveAllBtnState(saveAllBtn);
+        renderStayTable();
+      }
+    } catch (err) {
+      console.error(err);
+      await _modal.alert("Ocorreu um erro ao gravar os dados. Tenta novamente.", "Erro");
+    }
+  });
+
+  document.querySelectorAll("th[data-sort]").forEach((h) => {
+    h.addEventListener("click", () => {
+      const key = h.dataset.sort;
+      if (!key) return;
+      if (sortState.key === key) sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+      else sortState = { key, direction: "asc" };
+      renderStayTable();
+    });
+  });
+
+  document.querySelectorAll(".filter-row input[data-filter]").forEach((input) => {
+    input.addEventListener("input", () => {
+      const key = input.dataset.filter;
+      if (!key) return;
+      filterState[key] = input.value;
+      renderStayTable();
+    });
+  });
+}
+
+function setupLayoutExtras() {
+  // Hamburger toggle
+  const hamburger = document.getElementById("hamburger");
+  const navLinks = document.getElementById("navLinks");
+  if (hamburger && navLinks) {
+    hamburger.addEventListener("click", () => {
+      hamburger.classList.toggle("open");
+      navLinks.classList.toggle("open");
+    });
+  }
+
+  // Navbar scroll effect
+  const navbar = document.getElementById("navbar");
+  const scrollProgress = document.getElementById("scrollProgress");
+  if (navbar || scrollProgress) {
+    window.addEventListener("scroll", () => {
+      if (navbar) navbar.classList.toggle("scrolled", window.scrollY > 40);
+      if (scrollProgress) {
+        const total = document.documentElement.scrollHeight - window.innerHeight;
+        scrollProgress.style.width = total > 0 ? `${(window.scrollY / total) * 100}%` : "0";
+      }
+    }, { passive: true });
+  }
+
+  // Particles
+  const particlesEl = document.getElementById("particles");
+  if (particlesEl) {
+    const count = 40;
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement("div");
+      p.className = "particle";
+      p.style.cssText = [
+        `left:${Math.random() * 100}%`,
+        `top:${Math.random() * 100}%`,
+        `width:${2 + Math.random() * 3}px`,
+        `height:${2 + Math.random() * 3}px`,
+        `animation-duration:${8 + Math.random() * 16}s`,
+        `animation-delay:${Math.random() * 10}s`,
+        `opacity:${0.05 + Math.random() * 0.2}`
+      ].join(";");
+      frag.appendChild(p);
+    }
+    particlesEl.appendChild(frag);
+  }
+
+  // Reveal on scroll
+  const reveals = document.querySelectorAll(".reveal");
+  if (reveals.length) {
+    const obs = new IntersectionObserver(
+      (entries) => entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("active"); obs.unobserve(e.target); } }),
+      { threshold: 0.12 }
+    );
+    reveals.forEach((el) => obs.observe(el));
+  }
+
+  // Back button — inject on all pages except home
+  const isHome = !!document.querySelector(".hero-tall");
+  if (!isHome) {
+    const heroContent = document.querySelector(".hero-content");
+    if (heroContent) {
+      const btn = document.createElement("button");
+      btn.className = "back-btn";
+      btn.innerHTML = "&#8592; Voltar";
+      btn.addEventListener("click", () => history.back());
+      heroContent.insertBefore(btn, heroContent.firstChild);
+    }
+  }
+
+  // Home: scroll to drilldown origin section on return
+  if (isHome) {
+    const scrollTo = sessionStorage.getItem("drillScrollTo");
+    if (scrollTo) {
+      sessionStorage.removeItem("drillScrollTo");
+      requestAnimationFrame(() => {
+        const el = document.getElementById(scrollTo);
+        if (el) el.closest("section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }
+}
+
+setupLayoutExtras();
+setupColumnMenu();
+applyColumnVisibility();
+setupTeamTilesListener();
+setupStayCertifiedEdition();
+
+function setupUpdateIndicadoresBtn() {
+  const btn = document.getElementById("updateIndicadoresBtn");
+  if (!btn) return;
+
+  const now     = new Date();
+  const ano     = now.getFullYear();
+  const mesNum  = now.getMonth() + 1;
+  const mesNome = MES_ORDER[now.getMonth()];
+  btn.title = `Atualizar Indicadores — ${mesNome} ${ano}`;
+
+  btn.addEventListener("click", async () => {
+    if (!authState.isAdmin) return;
+    if (!stayRows.length) return;
+
+    const selectedTeam = filterState.equipa;
+    if (!selectedTeam) {
+      await _modal.alert("Seleciona uma equipa antes de atualizar os Indicadores.", "Equipa não selecionada");
+      return;
+    }
+
+    const confirmed = await _modal.confirm(
+      `Confirmas a atualização dos Indicadores de "${selectedTeam}" para ${mesNome} ${ano}?\n\nSerão contadas as certificações válidas e os consultores únicos neste momento.`,
+      "Atualizar Indicadores"
+    );
+    if (!confirmed) return;
+
+    // Count valid certs and unique consultants for the selected team right now
+    const scope = stayRows.filter(r => r.equipa === selectedTeam);
+    const valid = scope.filter(r => !(r.expirado === true || r.expirado === 'X'));
+    const certificacoes = valid.length;
+    const consultores = new Set(
+      valid.map(r => (r.email || "").toLowerCase().trim()).filter(Boolean)
+    ).size;
+
+    if (certificacoes === 0) {
+      await _modal.alert("Nenhuma certificação válida encontrada para esta equipa.", "Sem dados");
+      return;
+    }
+
+    btn.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE_URL}/indicadores`, {
+        method: "POST",
+        headers: { ...supabaseHeaders(), "Prefer": "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ ano, mes: mesNum, equipa: selectedTeam.trim(), certificacoes, consultores })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      await _modal.alert(
+        `Indicadores de "${selectedTeam}" atualizados:\n${certificacoes} certificações válidas · ${consultores} consultores únicos`,
+        `${mesNome} ${ano} — Atualização concluída`
+      );
+    } catch (err) {
+      console.error("Erro ao atualizar indicadores:", err);
+      await _modal.alert(`Erro ao atualizar os indicadores: ${err.message}`, "Erro");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+// Apply drilldown filters from URL query params (e.g. ?filter_email=x&filter_site=y)
+(function applyUrlFilters() {
+  const params = new URLSearchParams(_initSearch);
+  params.forEach((value, key) => {
+    if (!key.startsWith("filter_")) return;
+    const field = key.slice(7); // strip "filter_"
+    if (!(field in filterState)) return;
+    filterState[field] = value;
+    const input = document.querySelector(`.filter-row [data-filter="${field}"]`);
+    if (input) input.value = value;
+  });
+})();
+
+loadStayCertifiedTable();
+
+// ── PLANEAMENTO ──────────────────────────────────────────────────────────────
+
+const MES_OPTIONS = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const STATUS_OPTIONS = ["Planeado", "Cancelado"];
+
+// quarter é coluna gerada no Supabase (calculada a partir de mes_certificacao)
+const PLAN_COLUMN_KEYS = ["equipa", "quarter", "mes_certificacao", "email", "codigo_certificacao", "nome_certificacao", "site", "status", "notas", "acoes"];
+const PLAN_COLUMN_LABELS = {
+  equipa: "Equipa", quarter: "Quarter", mes_certificacao: "Mês Certif.", email: "Email",
+  codigo_certificacao: "Código", nome_certificacao: "Certificação",
+  site: "Site", status: "Status", notas: "Notas", acoes: "Ações"
+};
+
+let planRows = [];
+let planDisplayedRows = [];
+let planNotes = [];
+let planEditMode = false;
+let planNewRowDraft = null;
+let planSortState = { key: "mes_certificacao", direction: "asc" };
+const PLAN_HIDDEN_BY_DEFAULT = new Set(["site", "acoes"]);
+let planVisibleColumns = Object.fromEntries(PLAN_COLUMN_KEYS.map((k) => [k, !PLAN_HIDDEN_BY_DEFAULT.has(k)]));
+let planFilterState = { equipa: "", quarter: "", mes_certificacao: "", email: "", codigo_certificacao: "", nome_certificacao: "", site: "", status: "" };
+let planDirtySet = new Set(); // "email::codigo_certificacao" keys of rows with unsaved edits
+let _savedPlanVisibleColumns = null;
+
+function applyPlanFilters(rows) {
+  return rows.filter((row) =>
+    Object.entries(planFilterState).every(([key, val]) => {
+      const needle = String(val || "").trim().toLowerCase();
+      return !needle || String(row[key] ?? "").toLowerCase().includes(needle);
+    })
+  );
+}
+
+const MES_ORDER = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
+  "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+setupUpdateIndicadoresBtn();
+
+function getPlanViewRows() {
+  const rows = applyPlanFilters([...planRows]);
+  const { key, direction } = planSortState;
+  const sign = direction === "asc" ? 1 : -1;
+  rows.sort((a, b) => {
+    if (key === "mes_certificacao") {
+      const ia = MES_ORDER.indexOf(a.mes_certificacao ?? "");
+      const ib = MES_ORDER.indexOf(b.mes_certificacao ?? "");
+      const ai = ia === -1 ? 99 : ia;
+      const bi = ib === -1 ? 99 : ib;
+      return (ai - bi) * sign;
+    }
+    const va = String(a[key] ?? "").toLowerCase();
+    const vb = String(b[key] ?? "").toLowerCase();
+    if (va < vb) return -sign;
+    if (va > vb) return sign;
+    return 0;
+  });
+  return rows;
+}
+
+function buildPlanDataLists(rows) {
+  Object.keys(planFilterState).forEach(field => {
+    const unique = [...new Set(rows.map(r => String(r[field] ?? "")).filter(Boolean))].sort();
+    const input = document.querySelector(`#planPanel .filter-row [data-pfilter="${field}"]`);
+    if (input) attachAutocomplete(input, unique);
+  });
+}
+
+function renderPlanTable() {
+  const tbody = document.getElementById("planTableBody");
+  if (!tbody) return;
+  planDisplayedRows = getPlanViewRows();
+
+  if (!planDisplayedRows.length && !planNewRowDraft) {
+    tbody.innerHTML = "<tr><td colspan=\"9\">Sem registos.</td></tr>";
+    updatePlanTotals();
+    return;
+  }
+
+  const siteSelect = (field, idx, val) =>
+    `<select data-pfield="${field}" data-pidx="${idx}">${SITE_OPTIONS.map((s) =>
+      `<option value="${s}" ${val === s ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+
+  const mesSelect = (field, idx, val) =>
+    `<select data-pfield="${field}" data-pidx="${idx}">${MES_OPTIONS.map((m) =>
+      `<option value="${m}" ${val === m ? "selected" : ""}>${m || "—"}</option>`).join("")}</select>`;
+
+  const statusBadge = (s) => {
+    const cls = s === "Cancelado" ? "danger" : "ok";
+    return `<span class="badge ${cls}">${escapeHtml(s || "Planeado")}</span>`;
+  };
+
+  const rowsHtml = planDisplayedRows.map((r, idx) => {
+    const rowNotes = planNotes.filter(n => n.equipa === r.equipa && n.email === r.email && n.codigo_certificacao === r.codigo_certificacao);
+    const notesBtnHtml = `<button class="notes-trigger${rowNotes.length > 0 ? ' has-notes' : ''}"
+      data-notes-equipa="${escapeHtml(r.equipa ?? '')}"
+      data-notes-email="${escapeHtml(r.email)}"
+      data-notes-codigo="${escapeHtml(r.codigo_certificacao)}"
+      title="${rowNotes.length} nota(s)">${rowNotes.length > 0 ? `<span class="notes-badge">${rowNotes.length}</span>` : '+'}</button>`;
+    if (!planEditMode) {
+      return `<tr>
+        <td class="col-equipa">${escapeHtml(r.equipa ?? "")}</td>
+        <td class="col-quarter">${escapeHtml(r.quarter ?? "")}</td>
+        <td class="col-mes_certificacao">${escapeHtml(r.mes_certificacao)}</td>
+        <td class="col-email">${escapeHtml(r.email)}</td>
+        <td class="col-codigo_certificacao">${escapeHtml(r.codigo_certificacao)}</td>
+        <td class="col-nome_certificacao">${escapeHtml(r.nome_certificacao)}</td>
+        <td class="col-site">${escapeHtml(r.site)}</td>
+        <td class="col-status">${statusBadge(r.status)}</td>
+        <td class="col-notas">${notesBtnHtml}</td>
+        <td class="col-acoes">-</td>
+      </tr>`;
+    }
+    const statusSel = `<select data-pfield="status" data-pidx="${idx}">${STATUS_OPTIONS.map((s) =>
+      `<option value="${s}" ${(r.status || "Planeado") === s ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    const isDirty = planDirtySet.has(`${r.email}::${r.codigo_certificacao}`);
+    return `<tr${isDirty ? ' class="row-dirty"' : ''}>
+      <td class="col-equipa"><input data-pfield="equipa" data-pidx="${idx}" value="${escapeHtml(r.equipa ?? "")}" /></td>
+      <td class="col-quarter">${escapeHtml(r.quarter ?? "")}</td>
+      <td class="col-mes_certificacao">${mesSelect("mes_certificacao", idx, r.mes_certificacao)}</td>
+      <td class="col-email">${escapeHtml(r.email)}</td>
+      <td class="col-codigo_certificacao">${escapeHtml(r.codigo_certificacao)}</td>
+      <td class="col-nome_certificacao"><input data-pfield="nome_certificacao" data-pidx="${idx}" value="${escapeHtml(r.nome_certificacao)}" /></td>
+      <td class="col-site">${siteSelect("site", idx, r.site)}</td>
+      <td class="col-status">${statusSel}</td>
+      <td class="col-notas">${notesBtnHtml}</td>
+      <td class="col-acoes"><div class="row-actions">
+        <button class="mini-btn cancel" data-paction="delete-row" data-pidx="${idx}" title="Eliminar">🗑</button>
+      </div></td>
+    </tr>`;
+  }).join("");
+
+  const newSiteOpts   = SITE_OPTIONS.map((s) => `<option value="${s}">${s}</option>`).join("");
+  const newMesOpts    = MES_OPTIONS.map((m) => `<option value="${m}">${m || "—"}</option>`).join("");
+  const newStatusOpts = STATUS_OPTIONS.map((s) => `<option value="${s}">${s}</option>`).join("");
+
+  const newRowHtml = planEditMode && planNewRowDraft ? `<tr>
+    <td class="col-equipa"><input data-pnew="equipa" /></td>
+    <td class="col-quarter">—</td>
+    <td class="col-mes_certificacao"><select data-pnew="mes_certificacao">${newMesOpts}</select></td>
+    <td class="col-email"><input data-pnew="email" type="email" /></td>
+    <td class="col-codigo_certificacao"><input data-pnew="codigo_certificacao" /></td>
+    <td class="col-nome_certificacao"><input data-pnew="nome_certificacao" /></td>
+    <td class="col-site"><select data-pnew="site">${newSiteOpts}</select></td>
+    <td class="col-status"><select data-pnew="status">${newStatusOpts}</select></td>
+    <td class="col-notas">—</td>
+    <td class="col-acoes"><div class="row-actions">
+      <button class="mini-btn cancel" id="cancelPlanNewRowBtn" title="Cancelar">✕</button>
+    </div></td>
+  </tr>` : "";
+
+  tbody.innerHTML = rowsHtml + newRowHtml;
+  updatePlanSortHeaderUI();
+  applyPlanColumnVisibility();
+  updatePlanTotals();
+  fitPlanTableColumns();
+}
+
+function updatePlanSortHeaderUI() {
+  document.querySelectorAll("#planTable th[data-psort]").forEach((h) => {
+    h.classList.remove("sorted-asc", "sorted-desc");
+    if (h.dataset.psort === planSortState.key)
+      h.classList.add(planSortState.direction === "asc" ? "sorted-asc" : "sorted-desc");
+  });
+}
+
+function updatePlanTotals() {
+  const c = document.getElementById("planFilteredCount");
+  if (c) c.textContent = `${planDisplayedRows.length} / ${planRows.length}`;
+}
+
+function syncPlanColToggleButtons() {
+  document.querySelectorAll("#planColToggles [data-plan-col]").forEach(btn => {
+    btn.classList.toggle("active", !!planVisibleColumns[btn.dataset.planCol]);
+  });
+}
+
+function applyPlanColumnVisibility() {
+  PLAN_COLUMN_KEYS.forEach((k) => {
+    const show = planVisibleColumns[k];
+    document.querySelectorAll(`#planTable .col-${k}`).forEach((el) => { el.style.display = show ? "" : "none"; });
+    const fi = document.querySelector(`#planPanel [data-pfilter="${k}"]`);
+    if (fi) fi.parentElement.style.display = show ? "" : "none";
+  });
+}
+
+function fitPlanTableColumns() {
+  const table = document.getElementById("planTable");
+  if (!table) return;
+  const headerCells = table.querySelectorAll("thead tr:first-child th");
+  headerCells.forEach((th) => { th.style.width = ""; th.style.minWidth = ""; });
+  table.style.width = "max-content";
+  headerCells.forEach((th, i) => {
+    const col = i + 1;
+    let max = th.scrollWidth;
+    table.querySelectorAll(`tr td:nth-child(${col}), thead tr th:nth-child(${col})`).forEach((cell) => {
+      if (cell.scrollWidth > max) max = cell.scrollWidth;
+    });
+    th.style.width = `${max}px`;
+    th.style.minWidth = `${max}px`;
+  });
+}
+
+function getPlanFieldValue(field, idx) {
+  return document.querySelector(`[data-pfield="${field}"][data-pidx="${idx}"]`)?.value?.trim() ?? "";
+}
+
+async function savePlanRow(idx) {
+  const row = planDisplayedRows[idx];
+  const payload = {
+    equipa: getPlanFieldValue("equipa", idx),
+    nome_certificacao: getPlanFieldValue("nome_certificacao", idx),
+    site: getPlanFieldValue("site", idx),
+    mes_certificacao: getPlanFieldValue("mes_certificacao", idx),
+    status: getPlanFieldValue("status", idx),
+    updated_at: new Date().toISOString()
+  };
+  const query = `email=eq.${encodeURIComponent(row.email)}&codigo_certificacao=eq.${encodeURIComponent(row.codigo_certificacao)}`;
+  const res = await fetch(`${API_BASE_URL}/planeamento?${query}`,
+    { method: "PATCH", headers: supabaseHeaders({ Prefer: "return=representation" }), body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error(`PATCH failed ${res.status}`);
+}
+
+async function deletePlanRow(idx) {
+  const row = planDisplayedRows[idx];
+  if (!await _modal.confirm(`Eliminar o registo ${row.email} / ${row.codigo_certificacao}?`, "Confirmar eliminação")) return;
+  const query = `equipa=eq.${encodeURIComponent(row.equipa)}&email=eq.${encodeURIComponent(row.email)}&codigo_certificacao=eq.${encodeURIComponent(row.codigo_certificacao)}`;
+  const [res] = await Promise.all([
+    fetch(`${API_BASE_URL}/planeamento?${query}`, { method: "DELETE", headers: supabaseHeaders() }),
+    fetch(`${API_BASE_URL}/planeamento_notas?${query}`, { method: "DELETE", headers: supabaseHeaders() })
+  ]);
+  if (!res.ok) throw new Error(`DELETE failed ${res.status}`);
+  planNotes = planNotes.filter(n => !(n.equipa === row.equipa && n.email === row.email && n.codigo_certificacao === row.codigo_certificacao));
+}
+
+async function insertPlanRow() {
+  const getV = (f) => document.querySelector(`[data-pnew="${f}"]`)?.value?.trim() ?? "";
+  const payload = {
+    equipa: getV("equipa"),
+    email: getV("email"),
+    codigo_certificacao: getV("codigo_certificacao"),
+    nome_certificacao: getV("nome_certificacao"),
+    site: getV("site"),
+    mes_certificacao: getV("mes_certificacao"),
+    status: getV("status") || "Planeado",
+    created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+  };
+  if (!payload.email || !payload.codigo_certificacao || !payload.nome_certificacao) {
+    await _modal.alert("Preenche todos os campos obrigatórios: email, código e certificação.");
+    return;
+  }
+  if (planRows.some((r) => r.email === payload.email && r.codigo_certificacao === payload.codigo_certificacao)) {
+    await _modal.alert("Já existe um registo com esta combinação de email e código.", "Registo duplicado");
+    return;
+  }
+  const res = await fetch(`${API_BASE_URL}/planeamento`,
+    { method: "POST", headers: supabaseHeaders({ Prefer: "return=representation" }), body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error(`POST failed ${res.status}`);
+  planNewRowDraft = null;
+}
+
+async function loadPlaneamentoTable() {
+  const tbody = document.getElementById("planTableBody");
+  if (!tbody) return;
+  try {
+    const url = `${API_BASE_URL}/planeamento` +
+      `?select=equipa,quarter,email,codigo_certificacao,nome_certificacao,site,mes_certificacao,status` +
+      `&order=email.asc&limit=1000`;
+    const res = await fetch(url, { headers: supabaseHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    planRows = await res.json();
+    const nr = await fetch(`${API_BASE_URL}/planeamento_notas?select=*&order=created_at.asc`, { headers: supabaseHeaders() });
+    planNotes = nr.ok ? await nr.json() : [];
+    buildPlanDataLists(planRows);
+    renderPlanTeamTiles(planRows);
+    renderPlanTable();
+  } catch (err) {
+    document.getElementById("planTableBody").innerHTML =
+      "<tr><td colspan=\"8\">Erro a carregar dados do Supabase.</td></tr>";
+    console.error(err);
+  }
+}
+
+function renderPlanTeamTiles(rows) {
+  const container = document.getElementById("planTeamTiles");
+  if (!container) return;
+  const counts = {};
+  rows.forEach((r) => {
+    const eq = (r.equipa || "").trim() || "—";
+    counts[eq] = (counts[eq] || 0) + 1;
+  });
+  const teams = Object.keys(counts).sort();
+  container.innerHTML = teams.map((t) =>
+    `<button type="button" class="team-tile${planFilterState.equipa === t ? " active" : ""}" data-plan-team="${escapeHtml(t)}">
+      <span class="team-tile-name">${escapeHtml(t)}</span>
+      <span class="team-tile-count">${counts[t]} cert.</span>
+    </button>`
+  ).join("");
+}
+
+function setupPlanTeamTilesListener() {
+  const container = document.getElementById("planTeamTiles");
+  if (!container) return;
+  container.addEventListener("click", (e) => {
+    const tile = e.target.closest("[data-plan-team]");
+    if (!tile) return;
+    const team = tile.dataset.planTeam;
+    const isActive = planFilterState.equipa === team;
+    planFilterState.equipa = isActive ? "" : team;
+    const equipaInput = document.querySelector("#planPanel .filter-row [data-pfilter='equipa']");
+    if (equipaInput) equipaInput.value = planFilterState.equipa;
+    renderPlanTable();
+    renderPlanTeamTiles(planRows);
+    if (!isActive) {
+      document.getElementById("planPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
+}
+
+function setupPlanColumnMenu() {
+  const container = document.getElementById("planColToggles");
+  if (!container) return;
+  container.innerHTML = PLAN_COLUMN_KEYS.filter((k) => k !== "acoes").map((k) =>
+    `<button type="button" class="col-toggle-btn${planVisibleColumns[k] ? " active" : ""}" data-plan-col="${k}">${PLAN_COLUMN_LABELS[k]}</button>`
+  ).join("");
+  container.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-plan-col]");
+    if (!btn) return;
+    const key = btn.dataset.planCol;
+    planVisibleColumns[key] = !planVisibleColumns[key];
+    btn.classList.toggle("active", planVisibleColumns[key]);
+    applyPlanColumnVisibility();
+  });
+}
+
+async function savePlanDirtyRows() {
+  if (planNewRowDraft !== null) await insertPlanRow();
+  for (const key of planDirtySet) {
+    const [email, codigo] = key.split("::");
+    const idx = planDisplayedRows.findIndex(r => r.email === email && r.codigo_certificacao === codigo);
+    if (idx >= 0) await savePlanRow(idx);
+  }
+  planDirtySet.clear();
+}
+
+function updateSaveAllBtnState(saveAllBtn) {
+  if (!saveAllBtn) return;
+  const hasPending = planDirtySet.size > 0 || planNewRowDraft !== null;
+  saveAllBtn.classList.toggle("has-changes", hasPending);
+}
+
+// ── NOTES POPOVER ─────────────────────────────────────────────────────────────
+
+function formatNoteDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const dd   = String(d.getDate()).padStart(2, "0");
+  const mm   = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const hh   = String(d.getHours()).padStart(2, "0");
+  const min  = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+}
+
+function _notesGetArr(table) {
+  return table === "stay_certified_notas" ? stayNotes : planNotes;
+}
+function _notesSetArr(table, v) {
+  if (table === "stay_certified_notas") stayNotes = v;
+  else planNotes = v;
+}
+
+let _notesPopover = null;
+let _notesAnchorBtn = null;
+let _notesTable = null;
+
+function _notesOutsideClick(e) {
+  if (_notesPopover && !_notesPopover.contains(e.target) &&
+      e.target !== _notesAnchorBtn && !_notesAnchorBtn?.contains(e.target)) {
+    closeNotesPopover();
+  }
+}
+
+function closeNotesPopover() {
+  if (_notesPopover) { _notesPopover.remove(); _notesPopover = null; }
+  _notesAnchorBtn = null;
+  _notesTable = null;
+  document.removeEventListener("click", _notesOutsideClick, true);
+}
+
+function openNotesPopover(equipa, email, codigo, anchorEl, table) {
+  closeNotesPopover();
+  _notesAnchorBtn = anchorEl;
+  _notesTable = table;
+  const notes = _notesGetArr(table).filter(n => n.equipa === equipa && n.email === email && n.codigo_certificacao === codigo);
+
+  const pop = document.createElement("div");
+  pop.className = "notes-popover";
+  pop.innerHTML = `
+    <div class="notes-popover-header">
+      <span>Notas</span>
+      <button class="notes-popover-close" title="Fechar">✕</button>
+    </div>
+    <div class="notes-list">
+      ${notes.length
+        ? notes.map(n => `<div class="note-item" data-note-id="${escapeHtml(n.id_nota)}">
+            <div class="note-meta">${formatNoteDate(n.created_at)}</div>
+            <div class="note-text">${escapeHtml(n.nota)}</div>
+            <button class="note-delete" data-note-id="${escapeHtml(n.id_nota)}" title="Eliminar">🗑</button>
+          </div>`).join("")
+        : '<p class="notes-empty">Sem notas.</p>'}
+    </div>
+    <div class="notes-add-row">
+      <textarea class="notes-input" placeholder="Nova nota..." rows="2"></textarea>
+      <button class="notes-add-btn">Adicionar</button>
+    </div>`;
+
+  document.body.appendChild(pop);
+  _notesPopover = pop;
+
+  const rect = anchorEl.getBoundingClientRect();
+  const popW = 320;
+  let left = rect.left + window.scrollX;
+  let top  = rect.bottom + window.scrollY + 6;
+  if (left + popW > window.innerWidth - 8) left = Math.max(8, window.innerWidth - popW - 8);
+  pop.style.left = `${left}px`;
+  pop.style.top  = `${top}px`;
+
+  pop.querySelector(".notes-popover-close").addEventListener("click", closeNotesPopover);
+
+  const addBtn  = pop.querySelector(".notes-add-btn");
+  const textarea = pop.querySelector(".notes-input");
+  addBtn.addEventListener("click", async () => {
+    const text = textarea.value.trim();
+    if (!text) return;
+    addBtn.disabled = true;
+    try {
+      await addNote(equipa, email, codigo, text, table);
+      textarea.value = "";
+    } catch (err) { console.error(err); }
+    finally { addBtn.disabled = false; }
+  });
+
+  pop.querySelector(".notes-list").addEventListener("click", async e => {
+    const btn = e.target.closest(".note-delete");
+    if (!btn) return;
+    btn.disabled = true;
+    try { await deleteNote(btn.dataset.noteId, equipa, email, codigo, table); }
+    catch (err) { console.error(err); btn.disabled = false; }
+  });
+
+  setTimeout(() => document.addEventListener("click", _notesOutsideClick, true), 0);
+}
+
+async function addNote(equipa, email, codigo, nota, table) {
+  const res = await fetch(`${API_BASE_URL}/${table}`,
+    { method: "POST", headers: supabaseHeaders({ Prefer: "return=representation" }),
+      body: JSON.stringify({ equipa, email, codigo_certificacao: codigo, nota }) });
+  if (!res.ok) throw new Error(`POST note failed ${res.status}`);
+  const [newNote] = await res.json();
+  _notesGetArr(table).push(newNote);
+  if (_notesPopover) {
+    const list = _notesPopover.querySelector(".notes-list");
+    const empty = list.querySelector(".notes-empty");
+    if (empty) empty.remove();
+    const item = document.createElement("div");
+    item.className = "note-item";
+    item.dataset.noteId = newNote.id_nota;
+    item.innerHTML = `<div class="note-meta">${formatNoteDate(newNote.created_at)}</div>
+      <div class="note-text">${escapeHtml(newNote.nota)}</div>
+      <button class="note-delete" data-note-id="${escapeHtml(newNote.id_nota)}" title="Eliminar">🗑</button>`;
+    list.appendChild(item);
+  }
+  _updateNotesTrigger(equipa, email, codigo, table);
+}
+
+async function deleteNote(id_nota, equipa, email, codigo, table) {
+  const res = await fetch(`${API_BASE_URL}/${table}?id_nota=eq.${encodeURIComponent(id_nota)}`,
+    { method: "DELETE", headers: supabaseHeaders() });
+  if (!res.ok) throw new Error(`DELETE note failed ${res.status}`);
+  _notesSetArr(table, _notesGetArr(table).filter(n => n.id_nota !== id_nota));
+  if (_notesPopover) {
+    _notesPopover.querySelector(`[data-note-id="${CSS.escape(id_nota)}"].note-item`)?.remove();
+    const list = _notesPopover.querySelector(".notes-list");
+    if (list && !list.querySelector(".note-item"))
+      list.innerHTML = '<p class="notes-empty">Sem notas.</p>';
+  }
+  _updateNotesTrigger(equipa, email, codigo, table);
+}
+
+function _updateNotesTrigger(equipa, email, codigo, table) {
+  const btn = document.querySelector(
+    `.notes-trigger[data-notes-equipa="${CSS.escape(equipa)}"][data-notes-email="${CSS.escape(email)}"][data-notes-codigo="${CSS.escape(codigo)}"]`
+  );
+  if (!btn) return;
+  const count = _notesGetArr(table).filter(n => n.equipa === equipa && n.email === email && n.codigo_certificacao === codigo).length;
+  btn.classList.toggle("has-notes", count > 0);
+  btn.title = `${count} nota(s)`;
+  btn.innerHTML = count > 0 ? `<span class="notes-badge">${count}</span>` : "+";
+}
+
+function setupPlaneamentoEdition() {
+  const toggleBtn  = document.getElementById("planToggleEditBtn");
+  const addRowBtn  = document.getElementById("planAddRowBtn");
+  const saveAllBtn  = document.getElementById("planSaveAllBtn");
+  const exportBtn   = document.getElementById("planExportBtn");
+  const tbody       = document.getElementById("planTableBody");
+  if (!toggleBtn || !addRowBtn || !tbody) return;
+
+  if (exportBtn) {
+    exportBtn.addEventListener("click", () => {
+      if (!authState.isAdmin) return;
+      const exportCols   = PLAN_COLUMN_KEYS.filter(k => k !== "acoes" && k !== "notas");
+      const exportLabels = exportCols.map(k => PLAN_COLUMN_LABELS[k]);
+      const today = new Date().toISOString().slice(0, 10);
+      exportToExcel(planDisplayedRows, exportCols, exportLabels, `planeamento_${today}.xlsx`);
+    });
+  }
+
+  const exitEditMode = async (reload) => {
+    planEditMode = false;
+    planNewRowDraft = null;
+    planDirtySet.clear();
+    toggleBtn.classList.remove("active");
+    addRowBtn.classList.add("hidden");
+    if (saveAllBtn) { saveAllBtn.classList.add("hidden"); saveAllBtn.classList.remove("has-changes"); }
+    if (exportBtn)  exportBtn.classList.remove("hidden");
+    if (_savedPlanVisibleColumns) {
+      Object.assign(planVisibleColumns, _savedPlanVisibleColumns);
+      _savedPlanVisibleColumns = null;
+    }
+    planVisibleColumns.acoes = false;
+    applyPlanColumnVisibility();
+    syncPlanColToggleButtons();
+    if (reload) await loadPlaneamentoTable();
+    else renderPlanTable();
+  };
+
+  toggleBtn.addEventListener("click", async () => {
+    if (!authState.isAdmin) return;
+    if (!planEditMode) {
+      planEditMode = true;
+      toggleBtn.classList.add("active");
+      addRowBtn.classList.remove("hidden");
+      addRowBtn.disabled = false;
+      if (saveAllBtn) saveAllBtn.classList.remove("hidden");
+      if (exportBtn)  exportBtn.classList.add("hidden");
+      planVisibleColumns.acoes = true;
+      applyPlanColumnVisibility();
+      renderPlanTable();
+      return;
+    }
+    const hasPending = planDirtySet.size > 0 || planNewRowDraft !== null;
+    if (hasPending) {
+      const save = await _modal.confirm(
+        "Existem alterações não guardadas. Guardar antes de sair do modo de edição?",
+        "Alterações pendentes",
+        "Guardar",
+        "Descartar"
+      );
+      if (save) {
+        try {
+          await savePlanDirtyRows();
+          await exitEditMode(true);
+        } catch (err) {
+          console.error(err);
+          await _modal.alert("Erro ao guardar os dados. Tenta novamente.", "Erro");
+        }
+      } else {
+        await exitEditMode(false);
+      }
+    } else {
+      await exitEditMode(false);
+    }
+  });
+
+  if (saveAllBtn) {
+    saveAllBtn.addEventListener("click", async () => {
+      if (!planDirtySet.size && planNewRowDraft === null) return;
+      saveAllBtn.disabled = true;
+      try {
+        await savePlanDirtyRows();
+        await loadPlaneamentoTable();
+        updateSaveAllBtnState(saveAllBtn);
+        addRowBtn.disabled = false;
+      } catch (err) {
+        console.error(err);
+        await _modal.alert("Erro ao guardar os dados. Tenta novamente.", "Erro");
+      } finally {
+        saveAllBtn.disabled = false;
+      }
+    });
+  }
+
+  addRowBtn.addEventListener("click", () => {
+    if (planNewRowDraft !== null) return;
+    planNewRowDraft = {};
+    addRowBtn.disabled = true;
+    if (!_savedPlanVisibleColumns) {
+      _savedPlanVisibleColumns = { ...planVisibleColumns };
+      PLAN_COLUMN_KEYS.forEach(k => { if (k !== "acoes") planVisibleColumns[k] = true; });
+      applyPlanColumnVisibility();
+      syncPlanColToggleButtons();
+    }
+    renderPlanTable();
+    updateSaveAllBtnState(saveAllBtn);
+    const first = [...document.querySelectorAll("[data-pnew]")]
+      .find((el) => el.closest("td")?.style.display !== "none");
+    first?.focus();
+  });
+
+  tbody.addEventListener("change", (e) => {
+    const field = e.target.dataset.pfield;
+    if (!field) return;
+    const idx = Number(e.target.dataset.pidx);
+    const row = planDisplayedRows[idx];
+    if (row) {
+      planDirtySet.add(`${row.email}::${row.codigo_certificacao}`);
+      e.target.closest("tr")?.classList.add("row-dirty");
+      updateSaveAllBtnState(saveAllBtn);
+    }
+  });
+
+  tbody.addEventListener("click", async (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    try {
+      const notesBtn = t.closest(".notes-trigger");
+      if (notesBtn) {
+        if (_notesPopover && _notesAnchorBtn === notesBtn) { closeNotesPopover(); return; }
+        openNotesPopover(notesBtn.dataset.notesEquipa, notesBtn.dataset.notesEmail, notesBtn.dataset.notesCodigo, notesBtn, "planeamento_notas");
+        return;
+      }
+      if (t.dataset.paction === "delete-row") {
+        await deletePlanRow(Number(t.dataset.pidx));
+        planDirtySet.clear();
+        await loadPlaneamentoTable();
+        updateSaveAllBtnState(saveAllBtn);
+        return;
+      }
+      if (t.id === "cancelPlanNewRowBtn") {
+        planNewRowDraft = null;
+        addRowBtn.disabled = false;
+        updateSaveAllBtnState(saveAllBtn);
+        renderPlanTable();
+      }
+    } catch (err) {
+      console.error(err);
+      await _modal.alert("Ocorreu um erro ao gravar os dados. Tenta novamente.", "Erro");
+    }
+  });
+
+  document.querySelectorAll("#planTable th[data-psort]").forEach((h) => {
+    h.addEventListener("click", () => {
+      const key = h.dataset.psort;
+      if (!key) return;
+      if (planSortState.key === key) planSortState.direction = planSortState.direction === "asc" ? "desc" : "asc";
+      else planSortState = { key, direction: "asc" };
+      renderPlanTable();
+    });
+  });
+
+  document.querySelectorAll("#planPanel .filter-row input[data-pfilter]").forEach((input) => {
+    input.addEventListener("input", () => {
+      const key = input.dataset.pfilter;
+      if (key) { planFilterState[key] = input.value; renderPlanTable(); }
+    });
+  });
+}
+
+setupPlanColumnMenu();
+applyPlanColumnVisibility();
+setupPlanTeamTilesListener();
+setupPlaneamentoEdition();
+
+// Apply drilldown filters from URL query params (e.g. ?filter_email=x&filter_mes_certificacao=y)
+(function applyPlanUrlFilters() {
+  const params = new URLSearchParams(_initSearch);
+  params.forEach((value, key) => {
+    if (!key.startsWith("filter_")) return;
+    const field = key.slice("filter_".length);
+    if (!(field in planFilterState)) return;
+    planFilterState[field] = value;
+    const input = document.querySelector(`#planPanel .filter-row [data-pfilter="${field}"]`);
+    if (input) input.value = value;
+  });
+})();
+
+loadPlaneamentoTable();
+
+// ── INDICADORES ──────────────────────────────────────────────────────────────
+
+let indTeamFilter = "";
+let _indEvolutionChart = null;
+let _indNewCertsChart  = null;
+let _indNewCertsRows   = [];   // cached for drilldown
+let _indNewCertsStartYear = new Date().getFullYear() - 1;
+let _indTeamsBound = false;
+
+async function loadIndOverview(teamFilter = "") {
+  const elCerts    = document.getElementById("indTotalCerts");
+  const elConsult  = document.getElementById("indTotalConsultores");
+  const elExternos = document.getElementById("indTotalExternos");
+  const elPerdidas = document.getElementById("indTotalPerdidas");
+  if (!elCerts && !elConsult && !elExternos && !elPerdidas) return;
+
+  const setText = (el, v) => { if (el) el.textContent = v; };
+  setText(elCerts, "…"); setText(elConsult, "…"); setText(elExternos, "…"); setText(elPerdidas, "…");
+
+  const valid    = "expirado=not.is.true";
+  const expired  = "expirado=is.true";
+  const team     = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
+  const base     = `${API_BASE_URL}/stay_certified`;
+
+  try {
+    const [resCount, resRows, resExpired] = await Promise.all([
+      fetch(`${base}?select=email&${valid}${team}&limit=1`, { headers: supabaseHeaders({ Prefer: "count=exact" }) }),
+      fetch(`${base}?select=email,externo&${valid}${team}&limit=5000`, { headers: supabaseHeaders() }),
+      fetch(`${base}?select=email&${expired}${team}&limit=1`, { headers: supabaseHeaders({ Prefer: "count=exact" }) })
+    ]);
+
+    const parseCR = r => { const m = (r.headers.get("content-range") || "").match(/\/(\d+)$/); return m ? Number(m[1]) : "?"; };
+    setText(elCerts, parseCR(resCount));
+    setText(elPerdidas, parseCR(resExpired));
+
+    if (resRows.ok) {
+      const rows = await resRows.json();
+      const unique   = new Set(rows.map(r => (r.email || "").toLowerCase().trim()).filter(Boolean));
+      const externos = new Set(rows.filter(r => r.externo).map(r => (r.email || "").toLowerCase().trim()).filter(Boolean));
+      setText(elConsult, unique.size);
+      setText(elExternos, externos.size);
+    }
+  } catch (err) {
+    console.error("Erro ao carregar overview de indicadores:", err);
+    setText(elCerts, "—"); setText(elConsult, "—"); setText(elExternos, "—"); setText(elPerdidas, "—");
+  }
+}
+
+async function loadIndTeams() {
+  const container = document.getElementById("indTeamTiles");
+  if (!container) return;
+
+  try {
+    const [resCert, resPlan] = await Promise.all([
+      fetch(`${API_BASE_URL}/stay_certified?select=equipa&expirado=not.is.true&limit=2000`, { headers: supabaseHeaders() }),
+      fetch(`${API_BASE_URL}/planeamento?select=equipa&status=neq.Cancelado&limit=2000`, { headers: supabaseHeaders() })
+    ]);
+    if (!resCert.ok && !resPlan.ok) return;
+
+    const certRows = resCert.ok ? await resCert.json() : [];
+    const planRows = resPlan.ok ? await resPlan.json() : [];
+
+    const teamSet = new Set();
+    [...certRows, ...planRows].forEach(r => { const t = (r.equipa || "").trim(); if (t) teamSet.add(t); });
+    const teams = [...teamSet].sort();
+
+    const render = () => {
+      container.innerHTML = teams.map(t =>
+        `<button type="button" class="team-tile${indTeamFilter === t ? " active" : ""}" data-ind-team="${escapeHtml(t)}">
+          <span class="team-tile-name">${escapeHtml(t)}</span>
+        </button>`
+      ).join("");
+    };
+    render();
+
+    if (!_indTeamsBound) {
+      container.addEventListener("click", e => {
+        const tile = e.target.closest("[data-ind-team]");
+        if (!tile) return;
+        const team = tile.dataset.indTeam;
+        indTeamFilter = indTeamFilter === team ? "" : team;
+        render();
+        loadIndOverview(indTeamFilter);
+        loadIndChart(indTeamFilter);
+        loadIndNewCertsChart(indTeamFilter);
+        loadIndProjection(indTeamFilter);
+      });
+      _indTeamsBound = true;
+    }
+  } catch (err) {
+    console.error("Erro ao carregar equipas de indicadores:", err);
+  }
+}
+
+async function loadIndChart(teamFilter = "") {
+  const canvas = document.getElementById("indEvolutionChart");
+  if (!canvas) return;
+
+  const now       = new Date();
+  const startYear = now.getFullYear() - 1;
+  const endYear   = now.getFullYear();
+
+  try {
+    const res = await fetch(
+      `${API_BASE_URL}/indicadores?select=ano,mes,equipa,certificacoes,consultores&order=ano,mes&limit=5000`,
+      { headers: supabaseHeaders() }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    const allRows = await res.json();
+
+    // Client-side team filter — case-insensitive to handle data entry variations
+    const teamLower = teamFilter ? teamFilter.trim().toLowerCase() : "";
+    const rows = teamLower
+      ? allRows.filter(r => (r.equipa || "").trim().toLowerCase() === teamLower)
+      : allRows;
+
+    // Build lookup grouped by ano+mes (sum across teams when no filter)
+    const lookup = new Map();
+    for (const r of rows) {
+      const key = `${r.ano}-${Number(r.mes)}`;
+      if (lookup.has(key)) {
+        const e = lookup.get(key);
+        e.certificacoes += (r.certificacoes || 0);
+        e.consultores   += (r.consultores   || 0);
+      } else {
+        lookup.set(key, { certificacoes: r.certificacoes || 0, consultores: r.consultores || 0 });
+      }
+    }
+
+    // Dynamic year range: derived from actual data, with fallback to last 2 years
+    let dynStart = startYear;
+    let dynEnd   = endYear;
+    if (rows.length) {
+      dynStart = Math.min(dynStart, Math.min(...rows.map(r => r.ano)));
+      dynEnd   = Math.max(dynEnd,   Math.max(...rows.map(r => r.ano)));
+    }
+
+    const curYear  = now.getFullYear();
+    const curMonth = now.getMonth() + 1;
+
+    // Build full range: Jan(startYear) → Dec(endYear) — all 24 months always visible
+    // Past/current months with team filter → 0 (continuous line); future months → null (no data)
+    const labels  = [];
+    const certs   = [];
+    const consult = [];
+
+    for (let year = startYear; year <= endYear; year++) {
+      for (let mIdx = 0; mIdx < 12; mIdx++) {
+        const month = mIdx + 1;
+        const isFuture = year > curYear || (year === curYear && month > curMonth);
+        const entry = lookup.get(`${year}-${month}`);
+        const fillEmpty = (!isFuture && teamFilter) ? 0 : null;
+        labels.push(`${MES_ORDER[mIdx].slice(0, 3)} ${year}`);
+        certs.push(entry  ? entry.certificacoes : fillEmpty);
+        consult.push(entry ? entry.consultores   : fillEmpty);
+      }
+    }
+
+    const spanGaps = false;
+
+    if (_indEvolutionChart) { _indEvolutionChart.destroy(); _indEvolutionChart = null; }
+
+    // Projection target lines (flat dashed) — built via shared helper
+    const proj         = teamFilter ? projLoad(teamFilter) : {};
+    const extraDatasets = teamFilter ? _buildProjDatasets(proj, labels.length) : [];
+
+    _indEvolutionChart = new Chart(canvas, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Certificações",
+            data: certs,
+            borderColor: "#E91E8C",
+            backgroundColor: "rgba(233,30,140,.12)",
+            pointBackgroundColor: "#E91E8C",
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            tension: 0.35,
+            fill: true,
+            spanGaps
+          },
+          {
+            label: "Consultores",
+            data: consult,
+            borderColor: "#00d4ff",
+            backgroundColor: "rgba(0,212,255,.08)",
+            pointBackgroundColor: "#00d4ff",
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            tension: 0.35,
+            fill: true,
+            spanGaps
+          },
+          ...extraDatasets
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: {
+            labels: { color: "#c8d8e8", font: { family: "Inter", size: 12 }, padding: 20, usePointStyle: true, pointStyle: "line" }
+          },
+          tooltip: {
+            backgroundColor: "#0d1e2e",
+            borderColor: "rgba(255,255,255,.12)",
+            borderWidth: 1,
+            titleColor: "#e0eaf4",
+            bodyColor: "#8899aa",
+            padding: 12
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: "rgba(255,255,255,.05)" },
+            ticks: { color: "#8899aa", font: { family: "Inter", size: 11 }, maxRotation: 45 }
+          },
+          y: {
+            grid: { color: "rgba(255,255,255,.06)" },
+            ticks: { color: "#8899aa", font: { family: "Inter", size: 11 } },
+            beginAtZero: true
+          }
+        }
+      }
+    });
+  } catch (err) {
+    console.error("Erro ao carregar gráfico de indicadores:", err);
+  }
+}
+
+async function loadIndNewCertsChart(teamFilter = "") {
+  const canvas = document.getElementById("indNewCertsChart");
+  if (!canvas) return;
+
+  const now       = new Date();
+  const startYear = now.getFullYear() - 1;
+  const endYear   = now.getFullYear();
+  const rangeStart = `${startYear}-01`;
+  const rangeEnd   = `${endYear}-12`;
+  const team = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
+
+  try {
+    const res = await fetch(
+      `${API_BASE_URL}/stay_certified?select=equipa,email,codigo_certificacao,nome_certificacao,data_certificacao,data_expiracao,expirado${team}&limit=5000`,
+      { headers: supabaseHeaders() }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
+    _indNewCertsRows = rows;
+    _indNewCertsStartYear = startYear;
+
+    // Novas certificações: count by data_certificacao month
+    const newMap = new Map();
+    for (const r of rows) {
+      if (!r.data_certificacao) continue;
+      const certYM = r.data_certificacao.slice(0, 7);
+      if (certYM >= rangeStart && certYM <= rangeEnd)
+        newMap.set(certYM, (newMap.get(certYM) || 0) + 1);
+    }
+
+    // 1ª Certificação: para cada email, contar registos cuja data_certificacao
+    // é a mais antiga desse email (empates na mesma data contam).
+    const firstDateByEmail = new Map();
+    for (const r of rows) {
+      if (!r.data_certificacao || !r.email) continue;
+      const emailKey = String(r.email).trim().toLowerCase();
+      if (!emailKey) continue;
+      const certDate = r.data_certificacao;
+      const prev = firstDateByEmail.get(emailKey);
+      if (!prev || certDate < prev) firstDateByEmail.set(emailKey, certDate);
+    }
+
+    const firstMap = new Map();
+    const extraMap = new Map();
+    for (const r of rows) {
+      if (!r.data_certificacao || !r.email) continue;
+      const emailKey = String(r.email).trim().toLowerCase();
+      if (!emailKey) continue;
+      const certYM = r.data_certificacao.slice(0, 7);
+      if (!(certYM >= rangeStart && certYM <= rangeEnd)) continue;
+      if (r.data_certificacao === firstDateByEmail.get(emailKey)) {
+        firstMap.set(certYM, (firstMap.get(certYM) || 0) + 1);
+      } else {
+        extraMap.set(certYM, (extraMap.get(certYM) || 0) + 1);
+      }
+    }
+
+    // Renovações por mês (year, MM):
+    //   - cert é válida (expirado != true)
+    //   - data_expiracao é no mesmo mês do ano seguinte: YYYY-MM = (year+1)-MM
+    //   - data_certificacao NÃO é do ano em questão (year)
+    // Pré-índice: expiry YYYY-MM → [{certYear, valid}]
+    const expiryIdx = new Map();
+    for (const r of rows) {
+      if (!r.data_expiracao || !r.data_certificacao) continue;
+      const expYM = r.data_expiracao.slice(0, 7);
+      if (!expiryIdx.has(expYM)) expiryIdx.set(expYM, []);
+      expiryIdx.get(expYM).push({
+        certYear: parseInt(r.data_certificacao.slice(0, 4)),
+        valid: !(r.expirado === true || r.expirado === 'X')
+      });
+    }
+
+    const renovMap = new Map();
+    for (let year = startYear; year <= endYear; year++) {
+      for (let mIdx = 0; mIdx < 12; mIdx++) {
+        const MM        = String(mIdx + 1).padStart(2, "0");
+        const plotYM    = `${year}-${MM}`;
+        const targetExp = `${year + 1}-${MM}`;   // expiry: same month, next year
+        const candidates = expiryIdx.get(targetExp) || [];
+        const count = candidates.filter(c => c.valid && c.certYear !== year).length;
+        if (count > 0) renovMap.set(plotYM, count);
+      }
+    }
+
+    const labels = [], extraCerts = [], renovs = [], firstCerts = [];
+    for (let year = startYear; year <= endYear; year++) {
+      for (let mIdx = 0; mIdx < 12; mIdx++) {
+        const ym = `${year}-${String(mIdx + 1).padStart(2, "0")}`;
+        labels.push(`${MES_ORDER[mIdx].slice(0, 3)} ${year}`);
+        extraCerts.push(extraMap.get(ym) || null);
+        renovs.push(renovMap.get(ym)   || null);
+        firstCerts.push(firstMap.get(ym) || null);
+      }
+    }
+
+    if (_indNewCertsChart) { _indNewCertsChart.destroy(); _indNewCertsChart = null; }
+    _indNewCertsChart = new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "1ª Certificação",
+            data: firstCerts,
+            backgroundColor: "rgba(0,212,255,.60)",
+            borderColor: "#00d4ff",
+            borderWidth: 1,
+            borderRadius: 3,
+            spanGaps: false
+          },
+          {
+            label: "Certificações Extra",
+            data: extraCerts,
+            backgroundColor: "rgba(233,30,140,.65)",
+            borderColor: "#E91E8C",
+            borderWidth: 1,
+            borderRadius: 3,
+            spanGaps: false
+          },
+          {
+            label: "Renovações",
+            data: renovs,
+            backgroundColor: "rgba(255,160,50,.65)",
+            borderColor: "#ffa032",
+            borderWidth: 1,
+            borderRadius: 3,
+            spanGaps: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        onClick: (evt, elements) => {
+          if (!elements.length) return;
+          const { index } = elements[0];
+          const yr  = startYear + Math.floor(index / 12);
+          const mI  = index % 12;
+          const MM  = String(mI + 1).padStart(2, "0");
+          const ym  = `${yr}-${MM}`;
+          showIndNewCertsDrill(ym, yr, mI);
+        },
+        plugins: {
+          legend: {
+            labels: { color: "#c8d8e8", font: { family: "Inter", size: 12 }, boxWidth: 16, padding: 20 }
+          },
+          tooltip: {
+            backgroundColor: "#0d1e2e",
+            borderColor: "rgba(255,255,255,.12)",
+            borderWidth: 1,
+            titleColor: "#e0eaf4",
+            bodyColor: "#8899aa",
+            padding: 12
+          }
+        },
+        scales: {
+          x: {
+            stacked: true,
+            grid: { color: "rgba(255,255,255,.05)" },
+            ticks: { color: "#8899aa", font: { family: "Inter", size: 11 }, maxRotation: 45 }
+          },
+          y: {
+            stacked: true,
+            grid: { color: "rgba(255,255,255,.06)" },
+            ticks: { color: "#8899aa", font: { family: "Inter", size: 11 } },
+            beginAtZero: true
+          }
+        }
+      }
+    });
+
+    // Close button
+    const closeBtn = document.getElementById("indDrillClose");
+    if (closeBtn) {
+      closeBtn.onclick = () => {
+        const panel = document.getElementById("indNewCertsDrill");
+        if (panel) panel.style.display = "none";
+      };
+    }
+  } catch (err) {
+    console.error("Erro ao carregar gráfico de novas certificações:", err);
+  }
+}
+
+function getFirstCertDateByEmail(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    if (!r?.data_certificacao || !r?.email) continue;
+    const emailKey = String(r.email).trim().toLowerCase();
+    if (!emailKey) continue;
+    const certDate = r.data_certificacao;
+    const prev = map.get(emailKey);
+    if (!prev || certDate < prev) map.set(emailKey, certDate);
+  }
+  return map;
+}
+
+function showIndNewCertsDrill(ym, year, mIdx) {
+  const panel   = document.getElementById("indNewCertsDrill");
+  const titleEl = document.getElementById("indDrillTitle");
+  const tbody   = document.getElementById("indDrillBody");
+  if (!panel || !tbody) return;
+
+  const mesNome   = MES_ORDER[mIdx];
+  const MM        = String(mIdx + 1).padStart(2, "0");
+  const targetExp = `${year + 1}-${MM}`;
+
+  const novaRows  = _indNewCertsRows.filter(r =>
+    r.data_certificacao && r.data_certificacao.slice(0, 7) === ym
+  );
+  const renovRows = _indNewCertsRows.filter(r =>
+    r.data_expiracao && r.data_certificacao &&
+    r.data_expiracao.slice(0, 7) === targetExp &&
+    parseInt(r.data_certificacao.slice(0, 4)) !== year &&
+    !(r.expirado === true || r.expirado === 'X')
+  );
+
+  const firstDateByEmail = getFirstCertDateByEmail(_indNewCertsRows);
+  const firstRows = _indNewCertsRows.filter(r =>
+    r.data_certificacao && r.email &&
+    r.data_certificacao.slice(0, 7) === ym &&
+    r.data_certificacao === firstDateByEmail.get(String(r.email).trim().toLowerCase())
+  );
+  const extraRows = novaRows.filter(r =>
+    !(r.email && r.data_certificacao === firstDateByEmail.get(String(r.email).trim().toLowerCase()))
+  );
+
+  titleEl.textContent = `${mesNome} ${year} — 1ª Certificação: ${firstRows.length} · Certificações Extra: ${extraRows.length} · Renovações: ${renovRows.length}`;
+
+  const buildRows = rows => rows.map(r => {
+    const certUrl = appPath(`/certificacoes?filter_email=${encodeURIComponent(r.email || "")}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao || "")}`);
+    return `<tr>
+      <td>${escapeHtml(r.equipa || "")}</td>
+      <td>${escapeHtml(r.email || "")}</td>
+      <td>${escapeHtml(r.codigo_certificacao || "")}</td>
+      <td>${escapeHtml(r.nome_certificacao || "")}</td>
+      <td>${escapeHtml(r.data_certificacao || "")}</td>
+      <td>${escapeHtml(r.data_expiracao || "")}</td>
+      <td><a href="${certUrl}" class="mini-btn" title="Ver em Certificações" style="text-decoration:none;">↗</a></td>
+    </tr>`;
+  }).join("");
+
+  const sectionHdr = (label, count) =>
+    `<tr class="drill-section-header"><td colspan="7"><strong>${label}</strong> <span style="color:var(--text-muted)">(${count})</span></td></tr>`;
+  const emptyRow =
+    `<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Sem registos</td></tr>`;
+
+  // Verificar visibilidade dos datasets no gráfico (0=1ª Certificação, 1=Extra, 2=Renovações)
+  const visibilityPrimeira = !(_indNewCertsChart?.getDatasetMeta(0)?.hidden);
+  const visibilityExtra = !(_indNewCertsChart?.getDatasetMeta(1)?.hidden);
+  const visibilityRenovacoes = !(_indNewCertsChart?.getDatasetMeta(2)?.hidden);
+
+  let html = '';
+  if (visibilityPrimeira) {
+    html += sectionHdr("1ª Certificação", firstRows.length) +
+            (firstRows.length ? buildRows(firstRows) : emptyRow);
+  }
+  if (visibilityExtra) {
+    html += sectionHdr("Certificações Extra", extraRows.length) +
+            (extraRows.length ? buildRows(extraRows) : emptyRow);
+  }
+  if (visibilityRenovacoes) {
+    html += sectionHdr("Renovações", renovRows.length) +
+            (renovRows.length ? buildRows(renovRows) : emptyRow);
+  }
+
+  tbody.innerHTML = html || `<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Todas as séries estão escondidas</td></tr>`;
+
+  panel.style.display = "block";
+  panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+// ── INDICADORES — PROJEÇÃO DE PLANEAMENTO ────────────────────────────────────
+
+function _buildProjDatasets(proj, nPoints) {
+  const out = [];
+  if (!proj?.consultores || proj.obj_active === false) return out;
+  const mkLine = (label, color, target) => ({
+    label, data: Array(nPoints).fill(target),
+    borderColor: color, backgroundColor: "transparent",
+    borderWidth: 1.5, borderDash: [10, 6],
+    pointRadius: 0, pointHoverRadius: 0,
+    tension: 0, fill: false, spanGaps: true
+  });
+  if (proj.obj_portal != null)
+    out.push(mkLine(`Obj. Portal (${proj.obj_portal}%)`, "rgba(255,152,0,.45)",
+      Math.round((proj.obj_portal / 100) * proj.consultores)));
+  if (proj.obj_equipa != null)
+    out.push(mkLine(`Obj. Equipa (${proj.obj_equipa}%)`, "rgba(0,230,118,.45)",
+      Math.round((proj.obj_equipa / 100) * proj.consultores)));
+  return out;
+}
+
+function updateChartProjectionLines(team) {
+  if (!_indEvolutionChart) return;
+  const chart  = _indEvolutionChart;
+  const proj   = team ? projLoad(team) : {};
+  const n      = chart.data.labels.length;
+  chart.data.datasets = [...chart.data.datasets.slice(0, 2), ..._buildProjDatasets(proj, n)];
+  chart.update("none");
+}
+
+const PROJ_STORAGE_KEY = team => `ind_proj_${team}`;
+
+function projLoad(team) {
+  try { return JSON.parse(localStorage.getItem(PROJ_STORAGE_KEY(team)) || "{}"); }
+  catch { return {}; }
+}
+
+function projSave(team, data) {
+  localStorage.setItem(PROJ_STORAGE_KEY(team), JSON.stringify(data));
+}
+
+function updateProjCalcs() {
+  const c         = Number(document.getElementById("projConsultores")?.value) || 0;
+  const PortalPct = parseFloat(document.getElementById("projObjPortal")?.value);
+  const equipaPct = parseFloat(document.getElementById("projObjEquipa")?.value);
+  const calcI = document.getElementById("projObjPortalCalc");
+  const calcE = document.getElementById("projObjEquipaCalc");
+  if (calcI) calcI.textContent = c && !isNaN(PortalPct) ? Math.round(PortalPct / 100 * c) : "—";
+  if (calcE) calcE.textContent = c && !isNaN(equipaPct) ? Math.round(equipaPct / 100 * c) : "—";
+}
+
+async function loadProjPlaneamento(team) {
+  const elCert  = document.getElementById("projPlanCert");
+  const elPlan  = document.getElementById("projPlanPlan");
+  const elTotal = document.getElementById("projPlaneamentoTotal");
+  if (!elTotal) return;
+  if (elCert)  elCert.textContent  = "…";
+  if (elPlan)  elPlan.textContent  = "…";
+  elTotal.textContent = "…";
+
+  const teamQ = team ? `&equipa=eq.${encodeURIComponent(team)}` : "";
+  try {
+    const [resCert, resPlan] = await Promise.all([
+      fetch(`${API_BASE_URL}/stay_certified?select=email${teamQ}&expirado=not.is.true&limit=5000`, { headers: supabaseHeaders() }),
+      fetch(`${API_BASE_URL}/planeamento?select=email${teamQ}&status=neq.Cancelado&limit=5000`,    { headers: supabaseHeaders() })
+    ]);
+    const certRows = resCert.ok ? await resCert.json() : [];
+    const planRows = resPlan.ok ? await resPlan.json() : [];
+
+    const certCount = new Set(certRows.map(r => (r.email || "").toLowerCase().trim()).filter(Boolean)).size;
+    const planCount = new Set(planRows.map(r => (r.email || "").toLowerCase().trim()).filter(Boolean)).size;
+
+    if (elCert)  elCert.textContent  = certCount;
+    if (elPlan)  elPlan.textContent  = planCount;
+    elTotal.textContent = certCount + planCount;
+  } catch (err) {
+    if (elCert)  elCert.textContent  = "—";
+    if (elPlan)  elPlan.textContent  = "—";
+    if (elTotal) elTotal.textContent = "—";
+    console.error("Erro planeamento tile:", err);
+  }
+}
+
+function loadIndProjection(team) {
+  const section  = document.getElementById("projeccaoSection");
+  const subtitle = document.getElementById("projeccaoSubtitle");
+  if (!section) return;
+
+  if (!team) { section.style.display = "none"; return; }
+
+  section.style.display = "";
+  if (subtitle) subtitle.textContent = `Objetivos e planeamento — ${team}`;
+
+  const saved = projLoad(team);
+
+  // Clone interactive elements to drop stale listeners
+  ["projConsultores", "projObjPortal", "projObjEquipa", "projObjActive"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { const f = el.cloneNode(true); el.parentNode.replaceChild(f, el); }
+  });
+
+  // Populate
+  const inp = id => document.getElementById(id);
+  inp("projConsultores").value  = saved.consultores ?? "";
+  inp("projObjPortal").value    = saved.obj_portal  ?? "";
+  inp("projObjEquipa").value    = saved.obj_equipa  ?? "";
+  inp("projObjActive").checked  = saved.obj_active  !== false;
+
+  // Apply inactive state on both objective tiles together
+  const applyInactive = () => {
+    const off = !inp("projObjActive").checked;
+    document.getElementById("projObjPortalTile")?.classList.toggle("proj-inactive", off);
+    document.getElementById("projObjEquipaTile")?.classList.toggle("proj-inactive", off);
+  };
+  applyInactive();
+  updateProjCalcs();
+
+  const persist = () => {
+    projSave(team, {
+      consultores: inp("projConsultores").value !== "" ? Number(inp("projConsultores").value) : null,
+      obj_portal:  inp("projObjPortal").value  !== "" ? Number(inp("projObjPortal").value)   : null,
+      obj_equipa:  inp("projObjEquipa").value  !== "" ? Number(inp("projObjEquipa").value)   : null,
+      obj_active:  inp("projObjActive").checked,
+    });
+    updateProjCalcs();
+    updateChartProjectionLines(team);
+  };
+
+  inp("projConsultores").addEventListener("input",  updateProjCalcs);
+  inp("projObjPortal").addEventListener("input",    updateProjCalcs);
+  inp("projObjEquipa").addEventListener("input",    updateProjCalcs);
+  inp("projConsultores").addEventListener("change", persist);
+  inp("projObjPortal").addEventListener("change",   persist);
+  inp("projObjEquipa").addEventListener("change",   persist);
+
+  inp("projObjActive").addEventListener("change", () => { applyInactive(); persist(); });
+
+  loadProjPlaneamento(team);
+}
+
+loadIndTeams();
+loadIndOverview();
+loadIndChart();
+loadIndNewCertsChart();
+
+// ── NAVBAR ALERT BADGE ────────────────────────────────────────────────────────
+
+function setNavAlertBadge(red, orange) {
+  const link = document.querySelector('.navbar-links a[href*="alertas"]');
+  if (!link) return;
+  const existing = link.querySelector(".nav-alert-badge");
+  if (existing) existing.remove();
+  if (!red && !orange) return;
+  const badge = document.createElement("span");
+  badge.className = "nav-alert-badge";
+  if (red > 0)    badge.classList.add("nav-alert-badge--red");
+  else if (orange > 0) badge.classList.add("nav-alert-badge--orange");
+  badge.title = `${red} crítico(s), ${orange} urgente(s)`;
+  link.appendChild(badge);
+}
+
+// ── HOME TOTALS ───────────────────────────────────────────────────────────────
+
+async function loadHomeTotals() {
+  if (!document.getElementById("homeTotalCerts")) return;
+
+  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+  try {
+    const headers = supabaseHeaders({ Prefer: "count=exact" });
+
+    const today = new Date().toISOString().slice(0, 10);
+    const in15  = new Date(Date.now() + 15*24*60*60*1000).toISOString().slice(0, 10);
+    const in30  = new Date(Date.now() + 30*24*60*60*1000).toISOString().slice(0, 10);
+    const valid = `expirado=not.is.true`;
+    const [resCerts, resPlan, resAlert15, resAlert30, resRanking, resCodigos, resSites] = await Promise.all([
+      fetch(`${API_BASE_URL}/stay_certified?select=email&${valid}&limit=1`, { headers }),
+      fetch(`${API_BASE_URL}/planeamento?select=email&status=eq.Planeado&limit=1`, { headers }),
+      fetch(`${API_BASE_URL}/stay_certified?select=email&${valid}&data_expiracao=gte.${today}&data_expiracao=lte.${in15}&limit=1`, { headers }),
+      fetch(`${API_BASE_URL}/stay_certified?select=email&${valid}&data_expiracao=gt.${in15}&data_expiracao=lte.${in30}&limit=1`, { headers }),
+      fetch(`${API_BASE_URL}/stay_certified?select=email&${valid}&limit=2000`, { headers: supabaseHeaders() }),
+      fetch(`${API_BASE_URL}/stay_certified?select=codigo_certificacao,nome_certificacao&${valid}&limit=2000`, { headers: supabaseHeaders() }),
+      fetch(`${API_BASE_URL}/stay_certified?select=site&${valid}&limit=2000`, { headers: supabaseHeaders() })
+    ]);
+
+    const parseCR = (res) => {
+      const cr = res.headers.get("content-range") || "";
+      const match = cr.match(/\/(\d+)$/);
+      return match ? Number(match[1]) : "?";
+    };
+
+    const totalCerts  = parseCR(resCerts);
+    const totalPlan   = parseCR(resPlan);
+    const alertRed    = parseCR(resAlert15);
+    const alertOrange = parseCR(resAlert30);
+
+    setText("homeTotalCerts",    totalCerts);
+    setText("homeTotalPlan",     totalPlan);
+    setText("homeAlertRed",      alertRed);
+    setText("homeAlertOrange",   alertOrange);
+
+    // Navbar alert badge (all pages)
+    setNavAlertBadge(alertRed, alertOrange);
+
+    // Ranking completo
+    const rankingEl = document.getElementById("homeRanking");
+    if (rankingEl && resRanking.ok) {
+      const allRows = await resRanking.json();
+      const counts = {};
+      allRows.forEach(r => { const e = (r.email || "").trim(); if (e) counts[e] = (counts[e] || 0) + 1; });
+      const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      const medalClass = ["gold", "silver", "bronze"];
+      rankingEl.innerHTML = ranked.map(([email, n], i) =>
+        `<li style="cursor:pointer" data-drill-email="${escapeHtml(email)}">
+          <span class="ranking-pos ${medalClass[i] || ""}">${i + 1}</span>
+          <span class="ranking-email">${escapeHtml(email)}</span>
+          <span class="ranking-count">${n}</span>
+        </li>`
+      ).join("") || "<li class='ranking-loading'>Sem dados.</li>";
+
+      rankingEl.onclick = (e) => {
+        const li = e.target.closest("[data-drill-email]");
+        if (li) {
+          sessionStorage.setItem("drillScrollTo", "homeRanking");
+          window.location.href = appPath(`/certificacoes?filter_email=${encodeURIComponent(li.dataset.drillEmail)}`);
+        }
+      };
+    }
+
+    // Gráfico distribuição por código
+    const chartCanvas = document.getElementById("homeCertChart");
+    if (chartCanvas && resCodigos.ok) {
+      const codRows = await resCodigos.json();
+
+      // Build code→name map (first occurrence wins) and count by code
+      const codCounts = {};
+      const codNames  = {};
+      codRows.forEach(r => {
+        const c = (r.codigo_certificacao || "").trim();
+        const n = (r.nome_certificacao   || "").trim();
+        if (c) {
+          codCounts[c] = (codCounts[c] || 0) + 1;
+          if (!codNames[c] && n) codNames[c] = n;
+        }
+      });
+
+      // Sort descending
+      const sorted = Object.entries(codCounts).sort((a, b) => b[1] - a[1]);
+      const total = sorted.reduce((s, [, n]) => s + n, 0);
+
+      // Aggregate into "Outros" codes with < 2% of total or outside top 15
+      const threshold = Math.max(2, Math.round(total * 0.02));
+      const main = sorted.filter(([, n]) => n >= threshold).slice(0, 15);
+      const outrosTotal = sorted.filter(([, n]) => n < threshold).reduce((s, [, n]) => s + n, 0)
+        + sorted.slice(15).reduce((s, [, n]) => s + n, 0);
+      if (outrosTotal > 0) main.push(["Outros", outrosTotal]);
+
+      // Use "Nome (CODIGO)" as label; fallback to code if name missing
+      const certCodes = main.map(([c]) => c);  // original codes for drilldown
+      const labels = main.map(([c]) => codNames[c] ? `${codNames[c]} (${c})` : c);
+      const values = main.map(([, n]) => n);
+
+      // Gradient colours: interpolate pink→blue across bars
+      const pink = [233, 30, 140], blue = [0, 212, 255];
+      const barColors = labels.map((_, i) => {
+        const t = labels.length > 1 ? i / (labels.length - 1) : 0;
+        const r = Math.round(pink[0] + (blue[0] - pink[0]) * t);
+        const g = Math.round(pink[1] + (blue[1] - pink[1]) * t);
+        const b2 = Math.round(pink[2] + (blue[2] - pink[2]) * t);
+        return `rgba(${r},${g},${b2},0.85)`;
+      });
+
+      const barHeight = 32;
+      chartCanvas.style.height = `${Math.max(200, labels.length * (barHeight + 8))}px`;
+
+      chartCanvas.style.cursor = "pointer";
+      new Chart(chartCanvas, {
+        type: "bar",
+        data: { labels, datasets: [{ data: values, backgroundColor: barColors, borderRadius: 6, borderSkipped: false }] },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: ctx => ctx[0]?.label || "",
+                label: ctx => ` ${ctx.parsed.x} certificações`
+              }
+            }
+          },
+          onClick: (_, elements) => {
+            if (!elements.length) return;
+            const code = certCodes[elements[0].index];
+            if (code && code !== "Outros") {
+              sessionStorage.setItem("drillScrollTo", "homeCertChart");
+              window.location.href = appPath(`/certificacoes?filter_codigo_certificacao=${encodeURIComponent(code)}`);
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: "rgba(255,255,255,0.06)" },
+              ticks: { color: "#8899aa", font: { family: "Inter", size: 11 } }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { color: "#c8d8e8", font: { family: "Inter", size: 12 } }
+            }
+          }
+        }
+      });
+    }
+
+    // Gráfico distribuição por site
+    const siteCanvas = document.getElementById("homeSiteChart");
+    if (siteCanvas && resSites.ok) {
+      const siteRows = await resSites.json();
+      const siteCounts = {};
+      siteRows.forEach(r => { const s = (r.site || "").trim(); if (s) siteCounts[s] = (siteCounts[s] || 0) + 1; });
+
+      const sorted = Object.entries(siteCounts).sort((a, b) => b[1] - a[1]);
+      const siteLabels = sorted.map(([s]) => s);
+      const siteValues = sorted.map(([, n]) => n);
+
+      const pink = [233, 30, 140], blue = [0, 212, 255];
+      const siteColors = siteLabels.map((_, i) => {
+        const t = siteLabels.length > 1 ? i / (siteLabels.length - 1) : 0;
+        const r = Math.round(pink[0] + (blue[0] - pink[0]) * t);
+        const g = Math.round(pink[1] + (blue[1] - pink[1]) * t);
+        const b2 = Math.round(pink[2] + (blue[2] - pink[2]) * t);
+        return `rgba(${r},${g},${b2},0.85)`;
+      });
+
+      siteCanvas.style.height = "280px";
+      siteCanvas.style.cursor = "pointer";
+
+      new Chart(siteCanvas, {
+        type: "bar",
+        data: { labels: siteLabels, datasets: [{ data: siteValues, backgroundColor: siteColors, borderRadius: 8, borderSkipped: "bottom" }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} certificações` } }
+          },
+          onClick: (_, elements) => {
+            if (!elements.length) return;
+            const site = siteLabels[elements[0].index];
+            if (site) {
+              sessionStorage.setItem("drillScrollTo", "homeSiteChart");
+              window.location.href = appPath(`/certificacoes?filter_site=${encodeURIComponent(site)}`);
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: "#c8d8e8", font: { family: "Inter", size: 13, weight: "600" } }
+            },
+            y: {
+              grid: { color: "rgba(255,255,255,0.06)" },
+              ticks: { color: "#8899aa", font: { family: "Inter", size: 11 } },
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+  } catch (err) {
+    console.error("Erro ao carregar totais home:", err);
+  }
+}
+
+loadHomeTotals();
+
+// ── ADMIN ───────────────────────────────────────────────────────────────────
+
+function setAdminFeedback(text, tone = "info") {
+  const box = document.getElementById("adminFeedback");
+  if (!box) return;
+  box.textContent = text || "";
+  box.className = `admin-feedback ${tone}`;
+}
+
+function setPasswordFeedback(text, tone = "info") {
+  const box = document.getElementById("passwordFeedback");
+  if (!box) return;
+  box.textContent = text || "";
+  box.className = `admin-feedback ${tone}`;
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function makeClientPasswordHash(password) {
+  if (!window.crypto?.subtle || !window.crypto?.getRandomValues) {
+    throw new Error("WebCrypto não disponível neste browser");
+  }
+  const encoder = new TextEncoder();
+  const salt = new Uint8Array(16);
+  window.crypto.getRandomValues(salt);
+
+  const key = await window.crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"]
+  );
+
+  const iterations = 210000;
+  const bits = await window.crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+    key,
+    256
+  );
+  const hash = new Uint8Array(bits);
+  return `pbkdf2$${iterations}$sha256$${bytesToHex(salt)}$${bytesToHex(hash)}`;
+}
+async function loadAdminUsers() {
+  const body = document.getElementById("adminUsersBody");
+  if (!body) return;
+
+  if (!authState.isAdmin) {
+    body.innerHTML = `<tr><td colspan="5">Sem permissões de administrador.</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = `<tr><td colspan="5">A carregar utilizadores…</td></tr>`;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("authorized_emails")
+      .select("email,active,is_admin,created_at,updated_at")
+      .order("email", { ascending: true });
+
+    if (error) throw error;
+
+    const rows = Array.isArray(data) ? data : [];
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="5">Sem utilizadores na whitelist.</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = rows.map((row) => {
+      const email = String(row.email || "").toLowerCase();
+      const isSelf = email === authState.email;
+      return `<tr>
+        <td>${escapeHtml(email)}</td>
+        <td>${row.active ? '<span class="badge ok">Ativo</span>' : '<span class="badge danger">Inativo</span>'}</td>
+        <td>${row.is_admin ? '<span class="badge warn">Admin</span>' : '<span class="badge">Utilizador</span>'}</td>
+        <td>${escapeHtml(String(row.updated_at || row.created_at || "—").replace("T", " ").slice(0, 19))}</td>
+        <td class="admin-user-actions">
+          <button type="button" class="mini-btn admin-mini" data-admin-action="toggle-active" data-admin-email="${escapeHtml(email)}" title="Ativar/Inativar">${row.active ? "⏸" : "▶"}</button>
+          <button type="button" class="mini-btn admin-mini" data-admin-action="toggle-admin" data-admin-email="${escapeHtml(email)}" title="Dar/Retirar Admin" ${isSelf ? "disabled" : ""}>★</button>
+        </td>
+      </tr>`;
+    }).join("");
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="5">Erro a carregar whitelist.</td></tr>`;
+    console.error("Erro a carregar admin users:", err);
+  }
+}
+
+async function onAdminUsersClick(e) {
+  const btn = e.target.closest("[data-admin-action]");
+  if (!btn) return;
+  if (!authState.isAdmin) return;
+
+  const action = btn.dataset.adminAction;
+  const email = String(btn.dataset.adminEmail || "").toLowerCase();
+  if (!email) return;
+
+  btn.disabled = true;
+  setAdminFeedback("A guardar alterações…", "info");
+
+  try {
+    const { data: currentRows, error: currentErr } = await supabaseClient
+      .from("authorized_emails")
+      .select("email,active,is_admin")
+      .eq("email", email)
+      .limit(1);
+    if (currentErr) throw currentErr;
+    const row = currentRows?.[0];
+    if (!row) throw new Error("Utilizador não encontrado na whitelist.");
+
+    if (action === "toggle-active") {
+      const { error } = await supabaseClient
+        .from("authorized_emails")
+        .update({ active: !row.active })
+        .eq("email", email);
+      if (error) throw error;
+      setAdminFeedback(`Estado de ${email} atualizado.`, "success");
+    }
+
+    if (action === "toggle-admin") {
+      const { error } = await supabaseClient
+        .from("authorized_emails")
+        .update({ is_admin: !row.is_admin })
+        .eq("email", email);
+      if (error) throw error;
+      setAdminFeedback(`Permissões de ${email} atualizadas.`, "success");
+    }
+
+    await loadAdminUsers();
+  } catch (err) {
+    console.error("Erro na atualização de utilizador:", err);
+    setAdminFeedback(`Erro: ${err.message || "não foi possível atualizar utilizador."}`, "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function handleAdminCreateUser(e) {
+  e.preventDefault();
+  if (!authState.isAdmin) return;
+
+  const emailEl = document.getElementById("adminNewEmail");
+  const passEl = document.getElementById("adminNewPassword");
+  const activeEl = document.getElementById("adminNewActive");
+  const adminEl = document.getElementById("adminNewIsAdmin");
+  const submitBtn = document.getElementById("adminCreateBtn");
+  if (!emailEl || !passEl || !activeEl || !adminEl) return;
+
+  const email = String(emailEl.value || "").trim().toLowerCase();
+  const password = String(passEl.value || "");
+  const active = Boolean(activeEl.checked);
+  const isAdmin = Boolean(adminEl.checked);
+
+  if (!email || !password) {
+    setAdminFeedback("Indica email e password.", "error");
+    return;
+  }
+
+  if (password.length < 8) {
+    setAdminFeedback("A password deve ter pelo menos 8 caracteres.", "error");
+    return;
+  }
+
+  if (submitBtn) submitBtn.disabled = true;
+  setAdminFeedback("A criar utilizador no Auth e whitelist…", "info");
+
+  try {
+    const tempAuthClient = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false
+      }
+    });
+
+    const { error: signErr } = await tempAuthClient.auth.signUp({ email, password });
+    const authExists = /already|registered|exists/i.test(String(signErr?.message || ""));
+    if (signErr && !authExists) throw signErr;
+
+    const passwordHash = await makeClientPasswordHash(password);
+    const passwordUpdatedAt = new Date().toISOString();
+
+    const { error: upsertErr } = await supabaseClient
+      .from("authorized_emails")
+      .upsert(
+        {
+          email,
+          active,
+          is_admin: isAdmin,
+          password_hash: passwordHash,
+          password_updated_at: passwordUpdatedAt
+        },
+        { onConflict: "email" }
+      );
+    if (upsertErr) throw upsertErr;
+
+    if (authExists) {
+      setAdminFeedback(`Utilizador ${email} já existia no Auth; password hash da whitelist foi atualizada.`, "success");
+    } else {
+      setAdminFeedback(`Utilizador ${email} criado em Auth e whitelist com password hash.`, "success");
+    }
+
+    emailEl.value = "";
+    passEl.value = "";
+    activeEl.checked = true;
+    adminEl.checked = false;
+    await loadAdminUsers();
+  } catch (err) {
+    console.error("Erro a criar utilizador:", err);
+    setAdminFeedback(`Erro: ${err.message || "não foi possível criar utilizador."}`, "error");
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+async function handleOwnPasswordChange(e) {
+  e.preventDefault();
+
+  const passEl = document.getElementById("adminOwnPassword");
+  const pass2El = document.getElementById("adminOwnPasswordConfirm");
+  const submitBtn = document.getElementById("changePasswordBtn");
+  if (!passEl || !pass2El) return;
+
+  const pass1 = String(passEl.value || "");
+  const pass2 = String(pass2El.value || "");
+
+  if (!pass1 || !pass2) {
+    setPasswordFeedback("Preenche os dois campos de password.", "error");
+    return;
+  }
+  if (pass1.length < 8) {
+    setPasswordFeedback("A password deve ter pelo menos 8 caracteres.", "error");
+    return;
+  }
+  if (pass1 !== pass2) {
+    setPasswordFeedback("As passwords não coincidem.", "error");
+    return;
+  }
+
+  if (submitBtn) submitBtn.disabled = true;
+  setPasswordFeedback("A atualizar password…", "info");
+
+  try {
+    const { error } = await supabaseClient.auth.updateUser({ password: pass1 });
+    if (error) throw error;
+
+    const passwordHash = await makeClientPasswordHash(pass1);
+    const passwordUpdatedAt = new Date().toISOString();
+    const { error: tableErr } = await supabaseClient
+      .from("authorized_emails")
+      .update({ password_hash: passwordHash, password_updated_at: passwordUpdatedAt })
+      .eq("email", authState.email);
+    if (tableErr) throw tableErr;
+
+    passEl.value = "";
+    pass2El.value = "";
+    setPasswordFeedback("Password atualizada com sucesso (Auth + whitelist).", "success");
+  } catch (err) {
+    console.error("Erro a atualizar password:", err);
+    setPasswordFeedback(`Erro: ${err.message || "não foi possível atualizar a password."}`, "error");
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+function loadAdminPage() {
+  const guard = document.getElementById("adminAccessGuard");
+  const content = document.getElementById("adminContent");
+  const userMgmtSection = document.getElementById("adminUserManagementSection");
+  const usersBody = document.getElementById("adminUsersBody");
+  if (!guard && !content && !usersBody && !userMgmtSection) return;
+
+  if (content) content.style.display = "";
+
+  if (authState.isAdmin) {
+    if (guard) guard.style.display = "none";
+    if (userMgmtSection) userMgmtSection.style.display = "";
+    loadAdminUsers();
+    return;
+  }
+
+  if (guard) guard.style.display = "";
+  if (userMgmtSection) userMgmtSection.style.display = "none";
+}
+
+const adminCreateForm = document.getElementById("adminCreateUserForm");
+if (adminCreateForm) adminCreateForm.addEventListener("submit", handleAdminCreateUser);
+
+const adminUsersTable = document.getElementById("adminUsersBody");
+if (adminUsersTable) adminUsersTable.addEventListener("click", onAdminUsersClick);
+
+const changePasswordForm = document.getElementById("changePasswordForm");
+if (changePasswordForm) changePasswordForm.addEventListener("submit", handleOwnPasswordChange);
+
+loadAdminPage();
+
+// ── ALERT COUNTERS ────────────────────────────────────────────────────────────
+
+let alertTeamFilter = "";
+let _alertTeamsBound = false;
+
+async function loadAlertCounters(teamFilter = "") {
+  const el15   = document.getElementById("alertCount15");
+  const el30   = document.getElementById("alertCount30");
+  const el60   = document.getElementById("alertCount60");
+  const listEl = document.getElementById("alertCardList");
+  if (!el15 && !el30 && !el60 && !listEl) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const in15  = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const in30  = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const in60  = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  const hdCount = supabaseHeaders({ Prefer: "count=exact" });
+  const hdData  = supabaseHeaders();
+  const baseUrl = `${API_BASE_URL}/stay_certified`;
+  const valid   = `expirado=not.is.true`;
+  const team    = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
+
+  const parseCR = (res) => {
+    const m = (res.headers.get("content-range") || "").match(/\/(\d+)$/);
+    return m ? Number(m[1]) : "?";
+  };
+
+  try {
+    const [res15, res30, res60, resList] = await Promise.all([
+      fetch(`${baseUrl}?select=email&${valid}${team}&data_expiracao=gte.${today}&data_expiracao=lte.${in15}&limit=1`, { headers: hdCount }),
+      fetch(`${baseUrl}?select=email&${valid}${team}&data_expiracao=gt.${in15}&data_expiracao=lte.${in30}&limit=1`, { headers: hdCount }),
+      fetch(`${baseUrl}?select=email&${valid}${team}&data_expiracao=gt.${in30}&data_expiracao=lte.${in60}&limit=1`, { headers: hdCount }),
+      fetch(`${baseUrl}?select=equipa,email,codigo_certificacao,data_expiracao&${valid}${team}&data_expiracao=gte.${today}&data_expiracao=lte.${in60}&order=data_expiracao.asc&limit=500`, { headers: hdData })
+    ]);
+
+    if (el15) el15.textContent = parseCR(res15);
+    if (el30) el30.textContent = parseCR(res30);
+    if (el60) el60.textContent = parseCR(res60);
+
+    if (listEl && resList.ok) {
+      const rows = await resList.json();
+      if (!rows.length) {
+        listEl.innerHTML = `<p class="alert-list-empty">Sem certificações a expirar nos próximos 60 dias.</p>`;
+        return;
+      }
+      listEl.innerHTML = rows.map(r => {
+        let cls, label;
+        if (r.data_expiracao <= in15)      { cls = "danger";  label = "15 dias"; }
+        else if (r.data_expiracao <= in30) { cls = "warning"; label = "30 dias"; }
+        else                               { cls = "green";   label = "60 dias"; }
+        const href = appPath(`/certificacoes?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`);
+        const teamsHref = `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(r.email)}`;
+        return `<div class="alert-card-row">
+          <input type="checkbox" class="alert-card-checkbox" aria-label="Selecionar alerta" />
+          <div class="alert-card alert-card--${cls}" data-href="${escapeHtml(href)}" role="button" tabindex="0">
+            <span class="alert-card-badge alert-card-badge--${cls}">${label}</span>
+            <span class="alert-card-equipa">${escapeHtml(r.equipa || '—')}</span>
+            <span class="alert-card-email">${escapeHtml(r.email)}</span>
+            <span class="alert-card-codigo">${escapeHtml(r.codigo_certificacao)}</span>
+            <span class="alert-card-data">${escapeHtml(r.data_expiracao || '—')}</span>
+          </div>
+          <a class="alert-card-teams" href="${escapeHtml(teamsHref)}" target="_blank" rel="noopener" title="Contactar via Teams" aria-label="Contactar via Teams">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.625 5.625a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0ZM12 7.5a2.25 2.25 0 1 1-4.5 0A2.25 2.25 0 0 1 12 7.5Zm6 3a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.5 2.25h-3a3 3 0 0 0-1.03.183A4.5 4.5 0 0 1 16.5 16.5v.75H21a.75.75 0 0 0 .75-.75v-1.5a2.25 2.25 0 0 0-2.25-2.25Zm-8.25.75A3.75 3.75 0 0 0 7.5 17.25v.75h9v-.75A3.75 3.75 0 0 0 12.75 13.5h-1.5Z"/></svg>
+            Teams
+          </a>
+        </div>`;
+      }).join('');
+
+      // Preparar HTML com botão de email
+      const emailBtnHtml = `<div class="alert-email-btn-wrap" id="alertEmailBtnWrap">
+        <button class="alert-email-btn" id="alertEmailBtn" type="button" aria-label="Enviar email para selecionados">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+          <span class="alert-email-btn-label">Enviar Email</span>
+          <span class="alert-email-count" id="alertEmailCount">0</span>
+        </button>
+      </div>`;
+
+      // Inserir botão DEPOIS da lista
+      listEl.innerHTML = listEl.innerHTML + emailBtnHtml;
+
+      // Função para atualizar estado do botão
+      function updateEmailBtnState() {
+        const checked = listEl.querySelectorAll('.alert-card-checkbox:checked').length;
+        const btnWrap = document.getElementById('alertEmailBtnWrap');
+        const btnCount = document.getElementById('alertEmailCount');
+        if (btnWrap) {
+          if (checked > 0) {
+            btnWrap.classList.add('active');
+            btnCount.textContent = checked;
+          } else {
+            btnWrap.classList.remove('active');
+            btnCount.textContent = '0';
+          }
+        }
+      }
+
+      // Listeners para checkboxes
+      listEl.querySelectorAll('.alert-card-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', updateEmailBtnState);
+      });
+
+      // Listener para botão de email
+      const emailBtn = document.getElementById('alertEmailBtn');
+      if (emailBtn) {
+        emailBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const checked = Array.from(listEl.querySelectorAll('.alert-card-checkbox:checked'))
+            .map(cb => cb.closest('.alert-card-row'))
+            .filter(Boolean)
+            .map(row => ({
+              email: row.querySelector('.alert-card-email')?.textContent || '?',
+              codigo: row.querySelector('.alert-card-codigo')?.textContent || '?',
+              data: row.querySelector('.alert-card-data')?.textContent || '?',
+              equipa: row.querySelector('.alert-card-equipa')?.textContent || '?'
+            }));
+          
+          if (checked.length === 0) return;
+
+          // Recolher emails dos destinatários
+          const recipients = checked.map(item => item.email).join(';');
+
+          // Construir lista de certificações a expirar
+          const bulletList = checked.map(item => `• ${item.email} tem a certificação ${item.codigo} a expirar em ${item.data}`).join('\n');
+
+          // Construir body de email
+          let emailBody = `Olá ,\n\nChamamos a vossa atenção para a importância da renovação das certificações que possuem atualmente ativas, garantindo que se mantêm válidas e atualizadas.\n\nÉ essencial que assegurem a renovação atempada das vossas certificações, evitando qualquer interrupção na sua validade. Este cuidado é determinante para mantermos os nossos padrões de excelência e para continuarmos a responder com qualidade às exigências dos nossos clientes.\n\nPedimos que validem o estado das vossas certificações e avancem com os respetivos processos de renovação, caso necessitem de apoio ou tenham alguma dificuldade, estejam à vontade para entrar em contacto.\n\n${bulletList}\n\nAgradecemos a vossa colaboração e compromisso.`;
+
+          // Gerar mailto com Outlook
+          const subject = 'Certificações SAP - Stay Certified';
+          const mailto = `mailto:${encodeURIComponent(recipients)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+          window.location.href = mailto;
+        });
+      }
+
+      listEl.addEventListener("click", e => {
+        if (e.target.closest('.alert-email-btn') || e.target.closest('.alert-card-checkbox')) return;
+        const card = e.target.closest("[data-href]");
+        if (card) window.location.href = card.dataset.href;
+      });
+      listEl.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") {
+          const card = e.target.closest("[data-href]");
+          if (card) window.location.href = card.dataset.href;
+        }
+      });
+    }
+  } catch (err) {
+    console.error("Erro ao carregar alertas:", err);
+  }
+}
+
+// ── PLAN ALERTS ───────────────────────────────────────────────────────────────
+
+async function loadPlanAlerts(teamFilter = "") {
+  const elOverdue  = document.getElementById("planCountOverdue");
+  const elCurrent  = document.getElementById("planCountCurrent");
+  const elNext     = document.getElementById("planCountNext");
+  const labelCur   = document.getElementById("planCurrentMonthLabel");
+  const labelNext  = document.getElementById("planNextMonthLabel");
+  const listEl     = document.getElementById("planCardList");
+  if (!elOverdue && !elCurrent && !elNext && !listEl) return;
+
+  const now          = new Date();
+  const curMonthIdx  = now.getMonth();
+  const nextMonthIdx = (curMonthIdx + 1) % 12;
+  const curName      = MES_ORDER[curMonthIdx];
+  const nextName     = MES_ORDER[nextMonthIdx];
+  const pastMonths   = new Set(MES_ORDER.slice(0, curMonthIdx));
+
+  if (labelCur)  labelCur.textContent  = curName;
+  if (labelNext) labelNext.textContent = nextName;
+
+  const team = teamFilter ? `&equipa=eq.${encodeURIComponent(teamFilter)}` : "";
+
+  try {
+    const rows = await fetch(
+      `${API_BASE_URL}/planeamento?select=equipa,email,codigo_certificacao,mes_certificacao,quarter&status=eq.Planeado${team}&limit=2000`,
+      { headers: supabaseHeaders() }
+    ).then(r => r.json());
+
+    let overdue = 0, current = 0, next = 0;
+    const overdueRows = [], currentRows = [], nextRows = [];
+
+    rows.forEach(r => {
+      const mes = (r.mes_certificacao || "").trim();
+      if (mes === curName)          { current++;  currentRows.push(r); }
+      else if (mes === nextName)    { next++;     nextRows.push(r); }
+      else if (pastMonths.has(mes)) { overdue++;  overdueRows.push(r); }
+    });
+
+    if (elOverdue) elOverdue.textContent = overdue;
+    if (elCurrent) elCurrent.textContent = current;
+    if (elNext)    elNext.textContent    = next;
+
+    if (listEl) {
+      const allCards = [
+        ...overdueRows.map(r => ({ r, cls: "danger",  label: "Overdue" })),
+        ...currentRows.map(r => ({ r, cls: "warning", label: curName })),
+        ...nextRows.map(r =>    ({ r, cls: "green",   label: nextName })),
+      ];
+      if (!allCards.length) {
+        listEl.innerHTML = `<p class="alert-list-empty">Sem certificações planeadas pendentes.</p>`;
+        return;
+      }
+      listEl.innerHTML = allCards.map(({ r, cls, label }) => {
+        const href = appPath(`/planeamento?filter_email=${encodeURIComponent(r.email)}&filter_codigo_certificacao=${encodeURIComponent(r.codigo_certificacao)}`);
+        const teamsHref = `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(r.email)}`;
+        return `<div class="alert-card-row">
+          <input type="checkbox" class="alert-card-checkbox" aria-label="Selecionar alerta" />
+          <div class="alert-card alert-card--${cls}" data-href="${escapeHtml(href)}" role="button" tabindex="0">
+            <span class="alert-card-badge alert-card-badge--${cls}">${escapeHtml(label)}</span>
+            <span class="alert-card-equipa">${escapeHtml(r.equipa || '—')}</span>
+            <span class="alert-card-email">${escapeHtml(r.email)}</span>
+            <span class="alert-card-codigo">${escapeHtml(r.codigo_certificacao)}</span>
+            <span class="alert-card-data">${escapeHtml(r.mes_certificacao || '—')}</span>
+          </div>
+          <a class="alert-card-teams" href="${escapeHtml(teamsHref)}" target="_blank" rel="noopener" title="Contactar via Teams" aria-label="Contactar via Teams">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.625 5.625a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0ZM12 7.5a2.25 2.25 0 1 1-4.5 0A2.25 2.25 0 0 1 12 7.5Zm6 3a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.5 2.25h-3a3 3 0 0 0-1.03.183A4.5 4.5 0 0 1 16.5 16.5v.75H21a.75.75 0 0 0 .75-.75v-1.5a2.25 2.25 0 0 0-2.25-2.25Zm-8.25.75A3.75 3.75 0 0 0 7.5 17.25v.75h9v-.75A3.75 3.75 0 0 0 12.75 13.5h-1.5Z"/></svg>
+            Teams
+          </a>
+        </div>`;
+      }).join('');
+
+      // Preparar HTML com botão de email
+      const emailBtnHtml = `<div class="alert-email-btn-wrap" id="planEmailBtnWrap">
+        <button class="alert-email-btn" id="planEmailBtn" type="button" aria-label="Enviar email para selecionados">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+          <span class="alert-email-btn-label">Enviar Email</span>
+          <span class="alert-email-count" id="planEmailCount">0</span>
+        </button>
+      </div>`;
+
+      // Inserir botão DEPOIS da lista
+      listEl.innerHTML = listEl.innerHTML + emailBtnHtml;
+
+      // Função para atualizar estado do botão
+      function updatePlanEmailBtnState() {
+        const checked = listEl.querySelectorAll('.alert-card-checkbox:checked').length;
+        const btnWrap = document.getElementById('planEmailBtnWrap');
+        const btnCount = document.getElementById('planEmailCount');
+        if (btnWrap) {
+          if (checked > 0) {
+            btnWrap.classList.add('active');
+            btnCount.textContent = checked;
+          } else {
+            btnWrap.classList.remove('active');
+            btnCount.textContent = '0';
+          }
+        }
+      }
+
+      // Listeners para checkboxes
+      listEl.querySelectorAll('.alert-card-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', updatePlanEmailBtnState);
+      });
+
+      // Listener para botão de email
+      const planEmailBtn = document.getElementById('planEmailBtn');
+      if (planEmailBtn) {
+        planEmailBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const checked = Array.from(listEl.querySelectorAll('.alert-card-checkbox:checked'))
+            .map(cb => cb.closest('.alert-card-row'))
+            .filter(Boolean)
+            .map(row => ({
+              email: row.querySelector('.alert-card-email')?.textContent || '?',
+              codigo: row.querySelector('.alert-card-codigo')?.textContent || '?',
+              data: row.querySelector('.alert-card-data')?.textContent || '?',
+              equipa: row.querySelector('.alert-card-equipa')?.textContent || '?'
+            }));
+          
+          if (checked.length === 0) return;
+
+          // Recolher emails dos destinatários
+          const recipients = checked.map(item => item.email).join(';');
+
+          // Construir lista de certificações planeadas
+          const bulletList = checked.map(item => `• ${item.email} planeado para certificação ${item.codigo} em ${item.data}`).join('\n');
+
+          // Construir body de email
+          let emailBody = `Olá,\n\nDe acordo com o planeamento de objetivos realizados convosco, estamos próximos da data de realização da vossa certificação SAP.\n\nEsta etapa é essencial para desenvolvermos as nossas competências, crescermos como equipa e atingirmos um objetivo crucial para a Portal: aumentar o número de consultores certificados e garantir o nosso estatuto de parceria junto da SAP.\n\nCada um de vocês é uma peça fundamental para que este objetivo se torne realidade. Esta certificação não só fortalece as vossas competências individuais, como também posiciona a nossa equipa como um exemplo de excelência e inovação.\n\nSe estás a receber este email significa que foi feito um planeamento para obteres a tua certificação em breve. Este planeamento deve ser cumprido com a maior objetividade e compromisso possíveis.\n\n${bulletList}\n\nCaso não tenhas ainda licença de Learning Hub atribuída, informa-nos por favor.\nEm caso de dúvidas, desafios ou precisares de apoio, não hesites em entrar em contacto.\n\nObrigado e bons estudos,`;
+
+          // Gerar mailto com Outlook
+          const subject = 'Certificações SAP - certificação a realizar';
+          const mailto = `mailto:${encodeURIComponent(recipients)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+          window.location.href = mailto;
+        });
+      }
+
+      listEl.addEventListener("click", e => {
+        if (e.target.closest('.alert-email-btn') || e.target.closest('.alert-card-checkbox')) return;
+        const card = e.target.closest("[data-href]");
+        if (card) window.location.href = card.dataset.href;
+      });
+      listEl.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") {
+          const card = e.target.closest("[data-href]");
+          if (card) window.location.href = card.dataset.href;
+        }
+      });
+    }
+  } catch (err) {
+    console.error("Erro ao carregar alertas de planeamento:", err);
+  }
+}
+
+// ── ALERT TEAM TILES ─────────────────────────────────────────────────────────
+
+async function loadAlertTeams() {
+  const container = document.getElementById("alertTeamTiles");
+  if (!container) return;
+
+  try {
+    const [resCert, resPlan] = await Promise.all([
+      fetch(`${API_BASE_URL}/stay_certified?select=equipa&expirado=not.is.true&limit=2000`, { headers: supabaseHeaders() }),
+      fetch(`${API_BASE_URL}/planeamento?select=equipa&status=neq.Cancelado&limit=2000`, { headers: supabaseHeaders() })
+    ]);
+
+    if (!resCert.ok && !resPlan.ok) return;
+
+    const certRows = resCert.ok ? await resCert.json() : [];
+    const planRows = resPlan.ok ? await resPlan.json() : [];
+
+    const teamSet = new Set();
+    [...certRows, ...planRows].forEach(r => {
+      const t = (r.equipa || "").trim();
+      if (t) teamSet.add(t);
+    });
+    const teams = [...teamSet].sort();
+
+    const render = () => {
+      container.innerHTML = teams.map(t =>
+        `<button type="button" class="team-tile${alertTeamFilter === t ? " active" : ""}" data-alert-team="${escapeHtml(t)}">
+          <span class="team-tile-name">${escapeHtml(t)}</span>
+        </button>`
+      ).join("");
+    };
+    render();
+
+    if (!_alertTeamsBound) {
+      container.addEventListener("click", e => {
+        const tile = e.target.closest("[data-alert-team]");
+        if (!tile) return;
+        const team = tile.dataset.alertTeam;
+        alertTeamFilter = alertTeamFilter === team ? "" : team;
+        render();
+        loadAlertCounters(alertTeamFilter);
+        loadPlanAlerts(alertTeamFilter);
+      });
+      _alertTeamsBound = true;
+    }
+  } catch (err) {
+    console.error("Erro ao carregar equipas de alertas:", err);
+  }
+}
+
+loadAlertTeams();
+loadAlertCounters();
+loadPlanAlerts();
+
+// Navbar badge runs on every page (home page re-sets it inside loadHomeTotals)
+(async () => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const in15  = new Date(Date.now() + 15*24*60*60*1000).toISOString().slice(0, 10);
+    const in30  = new Date(Date.now() + 30*24*60*60*1000).toISOString().slice(0, 10);
+    const valid = `expirado=not.is.true`;
+    const hd = supabaseHeaders({ Prefer: "count=exact" });
+    const parseCR = r => { const m = (r.headers.get("content-range")||"").match(/\/(\d+)$/); return m ? Number(m[1]) : 0; };
+    const [r15, r30] = await Promise.all([
+      fetch(`${API_BASE_URL}/stay_certified?select=email&${valid}&data_expiracao=gte.${today}&data_expiracao=lte.${in15}&limit=1`, { headers: hd }),
+      fetch(`${API_BASE_URL}/stay_certified?select=email&${valid}&data_expiracao=gt.${in15}&data_expiracao=lte.${in30}&limit=1`, { headers: hd })
+    ]);
+    setNavAlertBadge(parseCR(r15), parseCR(r30));
+  } catch(e) { /* silently fail */ }
+})();
+

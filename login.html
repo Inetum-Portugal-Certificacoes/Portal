@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entrar | Portal Certificacoes Certificações</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body { background: linear-gradient(135deg, #0f1e2e 0%, #1a3a52 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .login-container { width: 100%; max-width: 400px; padding: 20px; }
+    .login-card { background: rgba(30, 50, 70, 0.9); border: 1px solid rgba(100, 180, 255, 0.2); border-radius: 12px; padding: 40px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3); }
+    .login-logo { text-align: center; margin-bottom: 30px; }
+    .login-logo img { height: 50px; }
+    .login-title { color: #e0eaf4; font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 10px; }
+    .login-subtitle { color: #8899aa; font-size: 14px; text-align: center; margin-bottom: 30px; }
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; color: #c8d8e8; font-size: 13px; font-weight: 500; margin-bottom: 8px; }
+    .form-group input { width: 100%; padding: 12px; background: rgba(15, 30, 46, 0.8); border: 1px solid rgba(100, 180, 255, 0.3); border-radius: 6px; color: #e0eaf4; font-size: 14px; font-family: inherit; }
+    .form-group input:focus { outline: none; border-color: #00d4ff; box-shadow: 0 0 12px rgba(0, 212, 255, 0.2); }
+    .btn-login { width: 100%; padding: 12px; background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%); border: none; border-radius: 6px; color: #0f1e2e; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+    .btn-login:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 212, 255, 0.3); }
+    .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+    .error { color: #ff6b6b; font-size: 12px; margin-top: 8px; }
+    .success { color: #51cf66; font-size: 12px; margin-top: 8px; }
+    .info { color: #8899aa; font-size: 12px; text-align: center; margin-top: 20px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="assets/portal-logo.svg" alt="Portal" />
+      </div>
+      <h1 class="login-title">Entrar</h1>
+      <p class="login-subtitle">Acesso por email e password</p>
+
+      <form id="login-form" onsubmit="login(event)">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" required placeholder="seu.email@empresa.com" autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required minlength="4" autocomplete="current-password" />
+          <div id="login-error" class="error hidden"></div>
+        </div>
+        <button type="submit" class="btn-login" id="btn-login">Entrar</button>
+      </form>
+      <p class="info">Apenas emails ativos na whitelist podem aceder.</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app-config.js"></script>
+  <script>
+    function getBasePath() {
+      if (!window.location.hostname.endsWith('github.io')) return '';
+      const first = window.location.pathname.split('/').filter(Boolean)[0] || '';
+      return first ? `/${first}` : '';
+    }
+
+    const BASE_PATH = getBasePath();
+    const HOME_PATH = `${BASE_PATH}/`;
+
+    const cfg = window.APP_CONFIG || {};
+    if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY || !window.supabase?.createClient) {
+      throw new Error('APP_CONFIG/Supabase client em falta. Verifica app-config.js e script CDN.');
+    }
+
+    const supabaseClient = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+
+    async function login(e) {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim().toLowerCase();
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('btn-login');
+      const errEl = document.getElementById('login-error');
+
+      if (!email || !password) return;
+
+      btn.disabled = true;
+      errEl.classList.add('hidden');
+      btn.textContent = 'A validar...';
+
+      try {
+        const { data: authData, error: authErr } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (authErr) throw new Error(authErr.message || 'Credenciais inválidas');
+
+        const sessionEmail = String(authData?.user?.email || '').toLowerCase();
+        if (!sessionEmail) throw new Error('Sessão inválida. Tenta novamente.');
+
+        const { data: allowedRows, error: allowErr } = await supabaseClient
+          .from('authorized_emails')
+          .select('email,active')
+          .eq('email', sessionEmail)
+          .eq('active', true)
+          .limit(1);
+
+        if (allowErr || !Array.isArray(allowedRows) || allowedRows.length === 0) {
+          await supabaseClient.auth.signOut();
+          throw new Error('Email não autorizado na whitelist');
+        }
+
+        window.location.href = HOME_PATH;
+      } catch (error) {
+        console.error('Erro de login:', error);
+        errEl.textContent = `❌ Erro: ${error.message}`;
+        errEl.classList.remove('hidden');
+        errEl.style.color = '#ff6b6b';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Entrar';
+      }
+    }
+  </script>
+</body>
+</html>
